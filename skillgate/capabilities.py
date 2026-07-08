@@ -15,7 +15,8 @@ from .schema import build_skill_input_contract
 
 
 def _slot(entry_id: str, text: str, category: str, support: str = "explicit",
-          answer_source: str | None = None) -> dict[str, Any]:
+          answer_source: str | None = None,
+          missing_policy: str | None = None) -> dict[str, Any]:
     """Build a slot entry with explicit support classification."""
     if answer_source is None:
         # Infer answer_source from category
@@ -26,13 +27,16 @@ def _slot(entry_id: str, text: str, category: str, support: str = "explicit",
             "requires_authorization": "authorization",
             "blocked": "blocked",
         }.get(category, "human")
-    return {
+    entry: dict[str, Any] = {
         "id": entry_id,
         "text": text,
         "category": category,
         "support": support,
         "answer_source": answer_source,
     }
+    if missing_policy is not None:
+        entry["missing_policy"] = missing_policy
+    return entry
 
 
 BUILTIN_CONTRACTS: dict[str, dict[str, Any]] = {

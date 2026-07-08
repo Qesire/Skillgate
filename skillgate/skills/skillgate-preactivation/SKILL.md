@@ -4,9 +4,9 @@ Use this metaskill **before** activating any task-specific coding-agent skill
 (bug_fix, code_review, refactor, documentation_update, feature_impl, failing_test_repair,
 or any custom skill discovered from a SKILL.md).
 
-This is a mandatory pre-activation gate: if a target skill may be invoked and no
+This is a pre-activation contract compilation step: if a target skill may be invoked and no
 current `NormalizedSkillInput` exists for the exact user request and task root,
-run SkillGate first. Do not execute the target skill from the raw request alone.
+run SkillGate first. The target skill should not be executed from the raw request alone.
 
 Its job is **not** to execute the target task.  Its job is to normalise the user's
 raw request into the input format expected by the target skill.
@@ -14,7 +14,7 @@ raw request into the input format expected by the target skill.
 ## Core Principle
 
 Most skills describe how an agent *should act after activation*, but they rarely
-describe what information *must be supplied before activation*.
+describe what information *should be supplied before activation*.
 
 This metaskill fills that missing pre-activation input layer.
 
@@ -115,7 +115,7 @@ skill_name: <name>
 
 Even when an anti-trigger applies, the agent should still prefer an existing
 matching `NormalizedSkillInput` if one is present. Raw benchmark baselines must
-run in an isolated skill configuration when they intentionally bypass this gate.
+run in an isolated skill configuration when they intentionally bypass this step.
 
 ## Invocation Preconditions
 

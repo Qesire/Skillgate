@@ -77,7 +77,8 @@ class DiscoveredContract:
             cat = category_map.get(s.answer_source, "human_askable")
             src = source_map.get(s.answer_source, "human")
             entry = cap_slot(s.name, s.description, cat,
-                             support=s.support, answer_source=src)
+                             support=s.support, answer_source=src,
+                             missing_policy=s.missing_policy)
 
             if s.necessity == "required":
                 required.append(entry)
