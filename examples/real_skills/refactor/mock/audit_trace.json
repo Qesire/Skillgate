@@ -1,0 +1,377 @@
+{
+  "contract": {
+    "activation": {
+      "triggers": [
+        "A user asks to restructure, rename, or simplify code",
+        "A user requests deduplication or code reorganization",
+        "A user asks to improve naming or modularity"
+      ]
+    },
+    "block_if": [
+      "Do not batch move or rename files without authorization"
+    ],
+    "safe_defaults": [
+      "Do not delete files without explicit authorization",
+      "Keep changes localized; do not perform broad refactors unless requested"
+    ],
+    "skill_id": "refactor",
+    "skill_name": "Refactor",
+    "slot_count": 3,
+    "slots": [
+      {
+        "answer_source": "human",
+        "confidence": 0.9,
+        "description": "What code should be refactored",
+        "evidence": [
+          {
+            "quote": "Identify the refactoring target and goal.",
+            "rationale": "Agent needs to know what to refactor"
+          }
+        ],
+        "missing_policy": "ask_user",
+        "name": "target_scope",
+        "necessity": "required",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 0.88,
+        "description": "What improvement: naming, structure, deduplication, performance",
+        "evidence": [
+          {
+            "quote": "Identify the refactoring target and goal.",
+            "rationale": "Goal drives the refactoring approach"
+          }
+        ],
+        "missing_policy": "ask_user",
+        "name": "refactor_goal",
+        "necessity": "required",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 0.85,
+        "description": "Must behavior be strictly preserved",
+        "evidence": [
+          {
+            "quote": "Behavior must be strictly preserved.",
+            "rationale": "Core constraint of the refactor skill"
+          }
+        ],
+        "missing_policy": "ask_user",
+        "name": "behavior_preservation",
+        "necessity": "recommended",
+        "support": "explicit"
+      }
+    ]
+  },
+  "llm_backend": "MockLLM",
+  "stages": [
+    {
+      "parsed": {
+        "activation_triggers": [
+          "A user asks to restructure, rename, or simplify code",
+          "A user requests deduplication or code reorganization",
+          "A user asks to improve naming or modularity"
+        ],
+        "execution_steps": [
+          "Identify the refactoring target and goal.",
+          "Read the current code and its test coverage.",
+          "Identify related tests.",
+          "Apply structural changes.",
+          "Run the smallest relevant test command.",
+          "Verify that behavior is preserved."
+        ],
+        "forbidden_actions": [
+          "Change behavior",
+          "Change public API without explicit authorization",
+          "Batch move or rename files without authorization",
+          "Delete files",
+          "Perform broad refactors unless explicitly requested"
+        ],
+        "output_requirements": [
+          "Summary of changes made",
+          "Before/after structure comparison",
+          "Test results confirming behavior preservation"
+        ],
+        "safety_constraints": [
+          "Behavior must be strictly preserved.",
+          "Do not change public API without explicit authorization.",
+          "Do not batch move or rename files without authorization.",
+          "Keep changes localized. Do not perform broad refactors unless explicitly requested.",
+          "Do not delete files."
+        ],
+        "verification_statements": [
+          "Run tests to verify behavior preservation before declaring completion.",
+          "Verify that behavior is preserved."
+        ]
+      },
+      "raw": "{\"activation_triggers\": [\"A user asks to restructure, rename, or simplify code\", \"A user requests deduplication or code reorganization\", \"A user asks to improve naming or modularity\"], \"execution_steps\": [\"Identify the refactoring target and goal.\", \"Read the current code and its test coverage.\", \"Identify related tests.\", \"Apply structural changes.\", \"Run the smallest relevant test command.\", \"Verify that behavior is preserved.\"], \"output_requirements\": [\"Summary of changes made\", \"Before/after structure comparison\", \"Test results confirming behavior preservation\"], \"forbidden_actions\": [\"Change behavior\", \"Change public API without explicit authorization\", \"Batch move or rename files without authorization\", \"Delete files\", \"Perform broad refactors unless explicitly requested\"], \"verification_statements\": [\"Run tests to verify behavior preservation before declaring completion.\", \"Verify that behavior is preserved.\"], \"safety_constraints\": [\"Behavior must be strictly preserved.\", \"Do not change public API without explicit authorization.\", \"Do not batch move or rename files without authorization.\", \"Keep changes localized. Do not perform broad refactors unless explicitly requested.\", \"Do not delete files.\"]}",
+      "stage": "extract"
+    },
+    {
+      "parsed": [
+        {
+          "description": "What code should be refactored",
+          "evidence": [
+            {
+              "quote": "Identify the refactoring target and goal.",
+              "rationale": "Agent needs to know what to refactor"
+            }
+          ],
+          "name": "target_scope",
+          "necessity": "required"
+        },
+        {
+          "description": "What improvement: naming, structure, deduplication, performance",
+          "evidence": [
+            {
+              "quote": "Identify the refactoring target and goal.",
+              "rationale": "Goal drives the refactoring approach"
+            }
+          ],
+          "name": "refactor_goal",
+          "necessity": "required"
+        },
+        {
+          "description": "Must behavior be strictly preserved",
+          "evidence": [
+            {
+              "quote": "Behavior must be strictly preserved.",
+              "rationale": "Core constraint of the refactor skill"
+            }
+          ],
+          "name": "behavior_preservation",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Do not delete files without explicit authorization",
+          "evidence": [
+            {
+              "quote": "Do not delete files.",
+              "rationale": "Explicit constraint from safety section"
+            }
+          ],
+          "name": "no_file_deletion",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Keep changes localized; do not perform broad refactors unless requested",
+          "evidence": [
+            {
+              "quote": "Keep changes localized. Do not perform broad refactors unless explicitly requested.",
+              "rationale": "Scope constraint"
+            }
+          ],
+          "name": "no_broad_refactors",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Do not batch move or rename files without authorization",
+          "evidence": [
+            {
+              "quote": "Do not batch move or rename files without authorization.",
+              "rationale": "Explicitly requires authorization"
+            }
+          ],
+          "name": "batch_file_moves",
+          "necessity": "recommended"
+        }
+      ],
+      "raw": "[{\"name\": \"target_scope\", \"description\": \"What code should be refactored\", \"necessity\": \"required\", \"evidence\": [{\"quote\": \"Identify the refactoring target and goal.\", \"rationale\": \"Agent needs to know what to refactor\"}]}, {\"name\": \"refactor_goal\", \"description\": \"What improvement: naming, structure, deduplication, performance\", \"necessity\": \"required\", \"evidence\": [{\"quote\": \"Identify the refactoring target and goal.\", \"rationale\": \"Goal drives the refactoring approach\"}]}, {\"name\": \"behavior_preservation\", \"description\": \"Must behavior be strictly preserved\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Behavior must be strictly preserved.\", \"rationale\": \"Core constraint of the refactor skill\"}]}, {\"name\": \"no_file_deletion\", \"description\": \"Do not delete files without explicit authorization\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Do not delete files.\", \"rationale\": \"Explicit constraint from safety section\"}]}, {\"name\": \"no_broad_refactors\", \"description\": \"Keep changes localized; do not perform broad refactors unless requested\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Keep changes localized. Do not perform broad refactors unless explicitly requested.\", \"rationale\": \"Scope constraint\"}]}, {\"name\": \"batch_file_moves\", \"description\": \"Do not batch move or rename files without authorization\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Do not batch move or rename files without authorization.\", \"rationale\": \"Explicitly requires authorization\"}]}]",
+      "stage": "infer"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human",
+          "confidence": 0.9,
+          "description": "What code should be refactored",
+          "evidence": [
+            {
+              "quote": "Identify the refactoring target and goal.",
+              "rationale": "Agent needs to know what to refactor"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "target_scope",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.88,
+          "description": "What improvement: naming, structure, deduplication, performance",
+          "evidence": [
+            {
+              "quote": "Identify the refactoring target and goal.",
+              "rationale": "Goal drives the refactoring approach"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "refactor_goal",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.85,
+          "description": "Must behavior be strictly preserved",
+          "evidence": [
+            {
+              "quote": "Behavior must be strictly preserved.",
+              "rationale": "Core constraint of the refactor skill"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "behavior_preservation",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.95,
+          "description": "Do not delete files without explicit authorization",
+          "evidence": [
+            {
+              "quote": "Do not delete files.",
+              "rationale": "Explicit constraint from safety section"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "no_file_deletion",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.92,
+          "description": "Keep changes localized; do not perform broad refactors unless requested",
+          "evidence": [
+            {
+              "quote": "Keep changes localized. Do not perform broad refactors unless explicitly requested.",
+              "rationale": "Scope constraint"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "no_broad_refactors",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "blocked",
+          "confidence": 0.9,
+          "description": "Do not batch move or rename files without authorization",
+          "evidence": [
+            {
+              "quote": "Do not batch move or rename files without authorization.",
+              "rationale": "Explicitly requires authorization"
+            }
+          ],
+          "missing_policy": "block",
+          "name": "batch_file_moves",
+          "necessity": "recommended",
+          "support": "explicit"
+        }
+      ],
+      "raw": "[{\"name\": \"target_scope\", \"description\": \"What code should be refactored\", \"necessity\": \"required\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.9, \"evidence\": [{\"quote\": \"Identify the refactoring target and goal.\", \"rationale\": \"Agent needs to know what to refactor\"}]}, {\"name\": \"refactor_goal\", \"description\": \"What improvement: naming, structure, deduplication, performance\", \"necessity\": \"required\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.88, \"evidence\": [{\"quote\": \"Identify the refactoring target and goal.\", \"rationale\": \"Goal drives the refactoring approach\"}]}, {\"name\": \"behavior_preservation\", \"description\": \"Must behavior be strictly preserved\", \"necessity\": \"recommended\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"explicit\", \"confidence\": 0.85, \"evidence\": [{\"quote\": \"Behavior must be strictly preserved.\", \"rationale\": \"Core constraint of the refactor skill\"}]}, {\"name\": \"no_file_deletion\", \"description\": \"Do not delete files without explicit authorization\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.95, \"evidence\": [{\"quote\": \"Do not delete files.\", \"rationale\": \"Explicit constraint from safety section\"}]}, {\"name\": \"no_broad_refactors\", \"description\": \"Keep changes localized; do not perform broad refactors unless requested\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.92, \"evidence\": [{\"quote\": \"Keep changes localized. Do not perform broad refactors unless explicitly requested.\", \"rationale\": \"Scope constraint\"}]}, {\"name\": \"batch_file_moves\", \"description\": \"Do not batch move or rename files without authorization\", \"necessity\": \"recommended\", \"answer_source\": \"blocked\", \"missing_policy\": \"block\", \"support\": \"explicit\", \"confidence\": 0.9, \"evidence\": [{\"quote\": \"Do not batch move or rename files without authorization.\", \"rationale\": \"Explicitly requires authorization\"}]}]",
+      "stage": "classify"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human",
+          "confidence": 0.9,
+          "description": "What code should be refactored",
+          "evidence": [
+            {
+              "quote": "Identify the refactoring target and goal.",
+              "rationale": "Agent needs to know what to refactor"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "target_scope",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.88,
+          "description": "What improvement: naming, structure, deduplication, performance",
+          "evidence": [
+            {
+              "quote": "Identify the refactoring target and goal.",
+              "rationale": "Goal drives the refactoring approach"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "refactor_goal",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.85,
+          "description": "Must behavior be strictly preserved",
+          "evidence": [
+            {
+              "quote": "Behavior must be strictly preserved.",
+              "rationale": "Core constraint of the refactor skill"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "behavior_preservation",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.95,
+          "description": "Do not delete files without explicit authorization",
+          "evidence": [
+            {
+              "quote": "Do not delete files.",
+              "rationale": "Explicit constraint from safety section"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "no_file_deletion",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.92,
+          "description": "Keep changes localized; do not perform broad refactors unless requested",
+          "evidence": [
+            {
+              "quote": "Keep changes localized. Do not perform broad refactors unless explicitly requested.",
+              "rationale": "Scope constraint"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "no_broad_refactors",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "blocked",
+          "confidence": 0.9,
+          "description": "Do not batch move or rename files without authorization",
+          "evidence": [
+            {
+              "quote": "Do not batch move or rename files without authorization.",
+              "rationale": "Explicitly requires authorization"
+            }
+          ],
+          "missing_policy": "block",
+          "name": "batch_file_moves",
+          "necessity": "recommended",
+          "support": "explicit"
+        }
+      ],
+      "raw": "[{\"name\": \"target_scope\", \"description\": \"What code should be refactored\", \"necessity\": \"required\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.9, \"evidence\": [{\"quote\": \"Identify the refactoring target and goal.\", \"rationale\": \"Agent needs to know what to refactor\"}]}, {\"name\": \"refactor_goal\", \"description\": \"What improvement: naming, structure, deduplication, performance\", \"necessity\": \"required\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.88, \"evidence\": [{\"quote\": \"Identify the refactoring target and goal.\", \"rationale\": \"Goal drives the refactoring approach\"}]}, {\"name\": \"behavior_preservation\", \"description\": \"Must behavior be strictly preserved\", \"necessity\": \"recommended\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"explicit\", \"confidence\": 0.85, \"evidence\": [{\"quote\": \"Behavior must be strictly preserved.\", \"rationale\": \"Core constraint of the refactor skill\"}]}, {\"name\": \"no_file_deletion\", \"description\": \"Do not delete files without explicit authorization\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.95, \"evidence\": [{\"quote\": \"Do not delete files.\", \"rationale\": \"Explicit constraint from safety section\"}]}, {\"name\": \"no_broad_refactors\", \"description\": \"Keep changes localized; do not perform broad refactors unless requested\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.92, \"evidence\": [{\"quote\": \"Keep changes localized. Do not perform broad refactors unless explicitly requested.\", \"rationale\": \"Scope constraint\"}]}, {\"name\": \"batch_file_moves\", \"description\": \"Do not batch move or rename files without authorization\", \"necessity\": \"recommended\", \"answer_source\": \"blocked\", \"missing_policy\": \"block\", \"support\": \"explicit\", \"confidence\": 0.9, \"evidence\": [{\"quote\": \"Do not batch move or rename files without authorization.\", \"rationale\": \"Explicitly requires authorization\"}]}]",
+      "stage": "critique"
+    }
+  ]
+}

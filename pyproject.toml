@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skillgate"
+version = "0.3.0"
+description = "Pre-activation metaskill and input compiler for agent skills"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "SkillGate Contributors" }]
+dependencies = ["jsonschema>=4.10", "PyYAML>=6.0"]
+keywords = ["coding-agents", "skills", "metaskill", "task-contracts", "agent-safety"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.optional-dependencies]
+dev = ["build>=1.2", "pytest>=7.0"]
+llm = ["openai>=1.0"]
+
+[project.scripts]
+skillgate = "skillgate.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["skillgate*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-q"]

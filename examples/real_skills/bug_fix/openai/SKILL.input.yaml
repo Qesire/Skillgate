@@ -1,0 +1,51 @@
+version: skill_input_contract.v1
+skill_id: bug_fix
+skill_name: Bug Fix
+activation:
+  triggers:
+  - A user reports a runtime error, crash, unexpected output, or broken behavior
+  - A test fails unexpectedly because the source code is incorrect
+slots:
+- name: failure_symptom
+  description: ''
+  necessity: recommended
+  answer_source: human
+  missing_policy: ask_user
+  support: explicit
+  confidence: 1.0
+  evidence: []
+- name: source_code_context
+  description: ''
+  necessity: recommended
+  answer_source: agent
+  missing_policy: discover_only
+  support: explicit
+  confidence: 1.0
+  evidence: []
+- name: reproduction_command
+  description: ''
+  necessity: recommended
+  answer_source: human_or_agent
+  missing_policy: discover_then_ask
+  support: inferred
+  confidence: 0.9
+  evidence: []
+- name: verification_expectation
+  description: ''
+  necessity: recommended
+  answer_source: human
+  missing_policy: ask_user
+  support: inferred
+  confidence: 0.85
+  evidence: []
+- name: authorization_to_modify_tests
+  description: ''
+  necessity: recommended
+  answer_source: authorization
+  missing_policy: ask_user
+  support: explicit
+  confidence: 1.0
+  evidence: []
+safe_defaults:
+- allowed_change_scope
+block_if: []

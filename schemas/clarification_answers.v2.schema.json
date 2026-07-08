@@ -1,0 +1,73 @@
+{
+  "$id": "urn:skillgate:schema:clarification-answers:v2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "answers": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "answer_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "question": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "question_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "redacted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "question_id",
+          "question",
+          "answer",
+          "answer_sha256",
+          "redacted"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "redacted_answers": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "redaction_policy": {
+      "enum": [
+        "reject_secret_like_by_default",
+        "explicit_redaction_applied",
+        "legacy_unchecked"
+      ]
+    },
+    "run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "skillgate.clarification_answers.v2"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "complete",
+    "redaction_policy",
+    "redacted_answers",
+    "answers"
+  ],
+  "title": "SkillGate Clarification Answers",
+  "type": "object"
+}

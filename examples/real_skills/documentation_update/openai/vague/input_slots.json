@@ -1,0 +1,63 @@
+{
+  "decision_kind": "ask_user",
+  "decision_reason": "Some required inputs need to be provided by the user.",
+  "schema_version": "skillgate.input_slot_state.v1",
+  "skill_id": "documentation_update",
+  "slot_count": 3,
+  "slots": [
+    {
+      "ambiguity": "low",
+      "answer_source": "human",
+      "assumption": null,
+      "category": "human_askable",
+      "description": "",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'intended_audience' → human_askable.",
+      "name": "intended_audience",
+      "question": "",
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "human_askable",
+      "status": "human_askable",
+      "support": "explicit",
+      "text": "",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "human",
+      "assumption": null,
+      "category": "human_askable",
+      "description": "",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'content_description' → human_askable.",
+      "name": "content_description",
+      "question": "",
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "human_askable",
+      "status": "human_askable",
+      "support": "explicit",
+      "text": "",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "human",
+      "assumption": null,
+      "category": "human_askable",
+      "description": "",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'user_request_for_promotional_language' → human_askable.",
+      "name": "user_request_for_promotional_language",
+      "question": "",
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "human_askable",
+      "status": "human_askable",
+      "support": "explicit",
+      "text": "",
+      "value": null
+    }
+  ]
+}

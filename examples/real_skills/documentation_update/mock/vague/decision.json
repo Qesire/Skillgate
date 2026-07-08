@@ -1,0 +1,9 @@
+{
+  "confidence": 0.85,
+  "kind": "ask_user",
+  "questions": [
+    "Who is the target audience: developers, users, contributors"
+  ],
+  "reason": "Some required inputs need to be provided by the user.",
+  "skill_id": "documentation_update"
+}

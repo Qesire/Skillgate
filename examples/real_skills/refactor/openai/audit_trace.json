@@ -1,0 +1,259 @@
+{
+  "contract": {
+    "activation": {
+      "triggers": [
+        "A user asks to restructure, rename, or simplify code",
+        "A user requests deduplication or code reorganization",
+        "A user asks to improve naming or modularity"
+      ]
+    },
+    "block_if": [],
+    "safe_defaults": [],
+    "skill_id": "refactor",
+    "skill_name": "Refactor",
+    "slot_count": 5,
+    "slots": [
+      {
+        "answer_source": "human",
+        "confidence": 1.0,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "refactoring_target",
+        "necessity": "recommended",
+        "support": "explicit"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 1.0,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "refactoring_goal",
+        "necessity": "recommended",
+        "support": "explicit"
+      },
+      {
+        "answer_source": "authorization",
+        "confidence": 1.0,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "allowed_change_scope",
+        "necessity": "recommended",
+        "support": "explicit"
+      },
+      {
+        "answer_source": "agent",
+        "confidence": 0.8,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_then_ask",
+        "name": "test_command",
+        "necessity": "recommended",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "agent",
+        "confidence": 0.8,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_then_ask",
+        "name": "current_code_location",
+        "necessity": "recommended",
+        "support": "inferred"
+      }
+    ]
+  },
+  "llm_backend": "OpenAILLM",
+  "model": "deepseek-chat",
+  "stages": [
+    {
+      "parsed": {
+        "activation_triggers": [
+          "A user asks to restructure, rename, or simplify code",
+          "A user requests deduplication or code reorganization",
+          "A user asks to improve naming or modularity"
+        ],
+        "execution_steps": [
+          "Identify the refactoring target and goal.",
+          "Read the current code and its test coverage.",
+          "Identify related tests.",
+          "Apply structural changes.",
+          "Run the smallest relevant test command.",
+          "Verify that behavior is preserved."
+        ],
+        "forbidden_actions": [
+          "Do not change public API without explicit authorization.",
+          "Do not batch move or rename files without authorization.",
+          "Keep changes localized. Do not perform broad refactors unless explicitly requested.",
+          "Do not delete files."
+        ],
+        "output_requirements": [
+          "Summary of changes made",
+          "Before/after structure comparison",
+          "Test results confirming behavior preservation"
+        ],
+        "safety_constraints": [
+          "Behavior must be strictly preserved."
+        ],
+        "verification_statements": [
+          "Run tests to verify behavior preservation before declaring completion."
+        ]
+      },
+      "raw": "```json\n{\n  \"activation_triggers\": [\n    \"A user asks to restructure, rename, or simplify code\",\n    \"A user requests deduplication or code reorganization\",\n    \"A user asks to improve naming or modularity\"\n  ],\n  \"execution_steps\": [\n    \"Identify the refactoring target and goal.\",\n    \"Read the current code and its test coverage.\",\n    \"Identify related tests.\",\n    \"Apply structural changes.\",\n    \"Run the smallest relevant test command.\",\n    \"Verify that behavior is preserved.\"\n  ],\n  \"output_requirements\": [\n    \"Summary of changes made\",\n    \"Before/after structure comparison\",\n    \"Test results confirming behavior preservation\"\n  ],\n  \"forbidden_actions\": [\n    \"Do not change public API without explicit authorization.\",\n    \"Do not batch move or rename files without authorization.\",\n    \"Keep changes localized. Do not perform broad refactors unless explicitly requested.\",\n    \"Do not delete files.\"\n  ],\n  \"verification_statements\": [\n    \"Run tests to verify behavior preservation before declaring completion.\"\n  ],\n  \"safety_constraints\": [\n    \"Behavior must be strictly preserved.\"\n  ]\n}\n```",
+      "stage": "extract"
+    },
+    {
+      "parsed": [
+        {
+          "description": "The specific code or file(s) that the user wants to refactor.",
+          "evidence": [
+            {
+              "quote": "Identify the refactoring target and goal.",
+              "rationale": "The first execution step requires identifying the target, so the agent must receive this information from the user before starting."
+            }
+          ],
+          "name": "refactoring_target",
+          "necessity": "required"
+        },
+        {
+          "description": "The user's stated goal for the refactoring (e.g., rename, simplify, deduplicate, improve modularity).",
+          "evidence": [
+            {
+              "quote": "Identify the refactoring target and goal.",
+              "rationale": "The execution step explicitly requires identifying the goal, which must be provided by the user to guide the refactoring."
+            }
+          ],
+          "name": "refactoring_goal",
+          "necessity": "required"
+        },
+        {
+          "description": "Authorization from the user on whether public API changes, batch file moves/renames, or broad refactors are permitted.",
+          "evidence": [
+            {
+              "quote": "Do not change public API without explicit authorization.",
+              "rationale": "The agent cannot safely proceed without knowing if the user authorizes public API changes, as this is a forbidden action unless authorized."
+            },
+            {
+              "quote": "Do not batch move or rename files without authorization.",
+              "rationale": "The agent needs to know if the user authorizes batch file moves/renames, otherwise this action is forbidden."
+            },
+            {
+              "quote": "Keep changes localized. Do not perform broad refactors unless explicitly requested.",
+              "rationale": "The agent must know if the user explicitly requests a broad refactor, otherwise only localized changes are allowed."
+            }
+          ],
+          "name": "allowed_change_scope",
+          "necessity": "required"
+        },
+        {
+          "description": "The smallest relevant test command to run for verifying behavior preservation.",
+          "evidence": [
+            {
+              "quote": "Run the smallest relevant test command.",
+              "rationale": "The execution step requires running a test command, so the agent needs to know which command to use (e.g., from the user or project configuration)."
+            }
+          ],
+          "name": "test_command",
+          "necessity": "required"
+        },
+        {
+          "description": "The file path or repository location of the code to be refactored.",
+          "evidence": [
+            {
+              "quote": "Read the current code and its test coverage.",
+              "rationale": "To read the current code, the agent must know where it is located, which must be provided as input."
+            }
+          ],
+          "name": "current_code_location",
+          "necessity": "required"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"refactoring_target\",\n    \"description\": \"The specific code or file(s) that the user wants to refactor.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Identify the refactoring target and goal.\",\n        \"rationale\": \"The first execution step requires identifying the target, so the agent must receive this information from the user before starting.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"refactoring_goal\",\n    \"description\": \"The user's stated goal for the refactoring (e.g., rename, simplify, deduplicate, improve modularity).\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Identify the refactoring target and goal.\",\n        \"rationale\": \"The execution step explicitly requires identifying the goal, which must be provided by the user to guide the refactoring.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"allowed_change_scope\",\n    \"description\": \"Authorization from the user on whether public API changes, batch file moves/renames, or broad refactors are permitted.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Do not change public API without explicit authorization.\",\n        \"rationale\": \"The agent cannot safely proceed without knowing if the user authorizes public API changes, as this is a forbidden action unless authorized.\"\n      },\n      {\n        \"quote\": \"Do not batch move or rename files without authorization.\",\n        \"rationale\": \"The agent needs to know if the user authorizes batch file moves/renames, otherwise this action is forbidden.\"\n      },\n      {\n        \"quote\": \"Keep changes localized. Do not perform broad refactors unless explicitly requested.\",\n        \"rationale\": \"The agent must know if the user explicitly requests a broad refactor, otherwise only localized changes are allowed.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"test_command\",\n    \"description\": \"The smallest relevant test command to run for verifying behavior preservation.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Run the smallest relevant test command.\",\n        \"rationale\": \"The execution step requires running a test command, so the agent needs to know which command to use (e.g., from the user or project configuration).\"\n      }\n    ]\n  },\n  {\n    \"name\": \"current_code_location\",\n    \"description\": \"The file path or repository location of the code to be refactored.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Read the current code and its test coverage.\",\n        \"rationale\": \"To read the current code, the agent must know where it is located, which must be provided as input.\"\n      }\n    ]\n  }\n]\n```",
+      "stage": "infer"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human",
+          "confidence": 1.0,
+          "missing_policy": "ask_user",
+          "name": "refactoring_target",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 1.0,
+          "missing_policy": "ask_user",
+          "name": "refactoring_goal",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "authorization",
+          "confidence": 1.0,
+          "missing_policy": "ask_user",
+          "name": "allowed_change_scope",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.9,
+          "missing_policy": "discover_then_ask",
+          "name": "test_command",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.9,
+          "missing_policy": "discover_then_ask",
+          "name": "current_code_location",
+          "support": "inferred"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"refactoring_target\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"refactoring_goal\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"allowed_change_scope\",\n    \"answer_source\": \"authorization\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"test_command\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.9\n  },\n  {\n    \"name\": \"current_code_location\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.9\n  }\n]\n```",
+      "stage": "classify"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human",
+          "confidence": 1.0,
+          "missing_policy": "ask_user",
+          "name": "refactoring_target",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 1.0,
+          "missing_policy": "ask_user",
+          "name": "refactoring_goal",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "authorization",
+          "confidence": 1.0,
+          "missing_policy": "ask_user",
+          "name": "allowed_change_scope",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "agent",
+          "confidence": 0.8,
+          "missing_policy": "discover_then_ask",
+          "name": "test_command",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "agent",
+          "confidence": 0.8,
+          "missing_policy": "discover_then_ask",
+          "name": "current_code_location",
+          "support": "inferred"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"refactoring_target\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"refactoring_goal\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"allowed_change_scope\",\n    \"answer_source\": \"authorization\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"test_command\",\n    \"answer_source\": \"agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.8\n  },\n  {\n    \"name\": \"current_code_location\",\n    \"answer_source\": \"agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.8\n  }\n]\n```",
+      "stage": "critique"
+    }
+  ]
+}

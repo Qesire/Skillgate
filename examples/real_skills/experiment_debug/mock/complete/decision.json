@@ -1,0 +1,7 @@
+{
+  "confidence": 0.84,
+  "kind": "explore_first",
+  "questions": [],
+  "reason": "Important context can be discovered through read-only local inspection.",
+  "skill_id": "experiment_debug"
+}

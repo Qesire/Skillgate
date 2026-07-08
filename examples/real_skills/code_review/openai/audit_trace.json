@@ -1,0 +1,213 @@
+{
+  "contract": {
+    "activation": {
+      "triggers": [
+        "A user asks to review code changes, a PR, or a diff",
+        "A user requests a security audit or correctness check on specific files"
+      ]
+    },
+    "block_if": [],
+    "safe_defaults": [],
+    "skill_id": "code_review",
+    "skill_name": "Code Review",
+    "slot_count": 4,
+    "slots": [
+      {
+        "answer_source": "human_or_agent",
+        "confidence": 0.85,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_then_ask",
+        "name": "review_target",
+        "necessity": "recommended",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 0.95,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "review_focus",
+        "necessity": "recommended",
+        "support": "explicit"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 0.8,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "severity_bar",
+        "necessity": "recommended",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "agent",
+        "confidence": 1.0,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_only",
+        "name": "code_content",
+        "necessity": "recommended",
+        "support": "explicit"
+      }
+    ]
+  },
+  "llm_backend": "OpenAILLM",
+  "model": "deepseek-chat",
+  "stages": [
+    {
+      "parsed": {
+        "activation_triggers": [
+          "A user asks to review code changes, a PR, or a diff",
+          "A user requests a security audit or correctness check on specific files"
+        ],
+        "execution_steps": [
+          "Identify the review target (files, diff, PR).",
+          "Read the changed or specified code.",
+          "Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.",
+          "Report only findings that meet the severity bar.",
+          "Cite specific file paths and line ranges as evidence."
+        ],
+        "forbidden_actions": [
+          "Do not modify any files.",
+          "Do not speculate.",
+          "Do not print full secret values.",
+          "Do not push, deploy, or call external services."
+        ],
+        "output_requirements": [
+          "A structured review report",
+          "Each finding: severity, file, line range, description, evidence",
+          "Optional: suggested fixes (reported separately, not applied)"
+        ],
+        "safety_constraints": [
+          "Review is read-only.",
+          "Only report evidence-backed findings.",
+          "Redact secret-like values in evidence."
+        ],
+        "verification_statements": []
+      },
+      "raw": "{\n  \"activation_triggers\": [\n    \"A user asks to review code changes, a PR, or a diff\",\n    \"A user requests a security audit or correctness check on specific files\"\n  ],\n  \"execution_steps\": [\n    \"Identify the review target (files, diff, PR).\",\n    \"Read the changed or specified code.\",\n    \"Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.\",\n    \"Report only findings that meet the severity bar.\",\n    \"Cite specific file paths and line ranges as evidence.\"\n  ],\n  \"output_requirements\": [\n    \"A structured review report\",\n    \"Each finding: severity, file, line range, description, evidence\",\n    \"Optional: suggested fixes (reported separately, not applied)\"\n  ],\n  \"forbidden_actions\": [\n    \"Do not modify any files.\",\n    \"Do not speculate.\",\n    \"Do not print full secret values.\",\n    \"Do not push, deploy, or call external services.\"\n  ],\n  \"verification_statements\": [],\n  \"safety_constraints\": [\n    \"Review is read-only.\",\n    \"Only report evidence-backed findings.\",\n    \"Redact secret-like values in evidence.\"\n  ]\n}",
+      "stage": "extract"
+    },
+    {
+      "parsed": [
+        {
+          "description": "The specific files, diff, or pull request to be reviewed. This could be file paths, a diff string, or a PR identifier.",
+          "evidence": [
+            {
+              "quote": "Identify the review target (files, diff, PR).",
+              "rationale": "The first execution step explicitly requires identifying the review target, meaning the agent must receive this information before starting."
+            }
+          ],
+          "name": "review_target",
+          "necessity": "required"
+        },
+        {
+          "description": "The specific aspect(s) to analyze: correctness, security, performance, maintainability, or API risk. The user may specify one or more of these.",
+          "evidence": [
+            {
+              "quote": "Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.",
+              "rationale": "The execution step requires analyzing for a 'requested focus', implying the user must specify which focus areas are desired."
+            }
+          ],
+          "name": "review_focus",
+          "necessity": "required"
+        },
+        {
+          "description": "The minimum severity level for findings to be reported (e.g., 'critical only', 'high and above', 'all').",
+          "evidence": [
+            {
+              "quote": "Report only findings that meet the severity bar.",
+              "rationale": "The agent needs to know what the 'severity bar' is in order to filter findings appropriately."
+            }
+          ],
+          "name": "severity_bar",
+          "necessity": "required"
+        },
+        {
+          "description": "The actual source code content of the files, diff, or PR to be reviewed. This is needed to perform the analysis.",
+          "evidence": [
+            {
+              "quote": "Read the changed or specified code.",
+              "rationale": "The execution step requires reading the code, so the agent must have access to the code content."
+            }
+          ],
+          "name": "code_content",
+          "necessity": "required"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"review_target\",\n    \"description\": \"The specific files, diff, or pull request to be reviewed. This could be file paths, a diff string, or a PR identifier.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Identify the review target (files, diff, PR).\",\n        \"rationale\": \"The first execution step explicitly requires identifying the review target, meaning the agent must receive this information before starting.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"review_focus\",\n    \"description\": \"The specific aspect(s) to analyze: correctness, security, performance, maintainability, or API risk. The user may specify one or more of these.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.\",\n        \"rationale\": \"The execution step requires analyzing for a 'requested focus', implying the user must specify which focus areas are desired.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"severity_bar\",\n    \"description\": \"The minimum severity level for findings to be reported (e.g., 'critical only', 'high and above', 'all').\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Report only findings that meet the severity bar.\",\n        \"rationale\": \"The agent needs to know what the 'severity bar' is in order to filter findings appropriately.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"code_content\",\n    \"description\": \"The actual source code content of the files, diff, or PR to be reviewed. This is needed to perform the analysis.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Read the changed or specified code.\",\n        \"rationale\": \"The execution step requires reading the code, so the agent must have access to the code content.\"\n      }\n    ]\n  }\n]\n```",
+      "stage": "infer"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.85,
+          "missing_policy": "discover_then_ask",
+          "name": "review_target",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.95,
+          "missing_policy": "ask_user",
+          "name": "review_focus",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.8,
+          "missing_policy": "ask_user",
+          "name": "severity_bar",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "agent",
+          "confidence": 1.0,
+          "missing_policy": "discover_only",
+          "name": "code_content",
+          "support": "explicit"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"review_target\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.85\n  },\n  {\n    \"name\": \"review_focus\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  },\n  {\n    \"name\": \"severity_bar\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.8\n  },\n  {\n    \"name\": \"code_content\",\n    \"answer_source\": \"agent\",\n    \"missing_policy\": \"discover_only\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  }\n]\n```",
+      "stage": "classify"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.85,
+          "missing_policy": "discover_then_ask",
+          "name": "review_target",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.95,
+          "missing_policy": "ask_user",
+          "name": "review_focus",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.8,
+          "missing_policy": "ask_user",
+          "name": "severity_bar",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "agent",
+          "confidence": 1.0,
+          "missing_policy": "discover_only",
+          "name": "code_content",
+          "support": "explicit"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"review_target\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.85\n  },\n  {\n    \"name\": \"review_focus\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  },\n  {\n    \"name\": \"severity_bar\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.8\n  },\n  {\n    \"name\": \"code_content\",\n    \"answer_source\": \"agent\",\n    \"missing_policy\": \"discover_only\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  }\n]\n```",
+      "stage": "critique"
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "$id": "urn:skillgate:schema:input-slot-state:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Evaluation state for one target-skill input slot.",
+  "properties": {
+    "ambiguity": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "answer_source": {
+      "enum": [
+        "agent",
+        "authorization",
+        "blocked",
+        "human",
+        "human_or_agent",
+        "known",
+        "policy_default"
+      ]
+    },
+    "assumption": {
+      "oneOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "category": {
+      "enum": [
+        "agent_discoverable",
+        "blocked",
+        "human_askable",
+        "irrelevant",
+        "known",
+        "requires_authorization",
+        "safe_assumption"
+      ]
+    },
+    "description": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 0,
+      "type": "array"
+    },
+    "handling_reason": {
+      "type": "string"
+    },
+    "name": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "question": {
+      "oneOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "risk": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "skillgate.input_slot_state.v1"
+    },
+    "status": {
+      "enum": [
+        "agent_discoverable",
+        "blocked",
+        "human_askable",
+        "irrelevant",
+        "known",
+        "requires_authorization",
+        "safe_assumption"
+      ]
+    },
+    "support": {
+      "enum": [
+        "explicit",
+        "guessed",
+        "inferred",
+        "recommended"
+      ]
+    },
+    "text": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "value": {
+      "oneOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "name",
+    "text",
+    "description",
+    "category",
+    "status",
+    "value",
+    "question",
+    "assumption",
+    "evidence_ids",
+    "answer_source",
+    "support",
+    "risk",
+    "ambiguity",
+    "handling_reason"
+  ],
+  "title": "SkillGate InputSlotState",
+  "type": "object"
+}

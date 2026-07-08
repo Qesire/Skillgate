@@ -1,0 +1,63 @@
+{
+  "decision_kind": "ask_user",
+  "decision_reason": "Some required inputs need to be provided by the user.",
+  "schema_version": "skillgate.input_slot_state.v1",
+  "skill_id": "bug_fix",
+  "slot_count": 3,
+  "slots": [
+    {
+      "ambiguity": "low",
+      "answer_source": "human",
+      "assumption": null,
+      "category": "human_askable",
+      "description": "What changes are permitted: source-only, tests allowed, public API changes",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'allowed_change_scope' is human_askable (support: inferred, answer: human).",
+      "name": "allowed_change_scope",
+      "question": "What changes are permitted: source-only, tests allowed, public API changes",
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "human_askable",
+      "status": "human_askable",
+      "support": "inferred",
+      "text": "What changes are permitted: source-only, tests allowed, public API changes",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "policy_default",
+      "assumption": "Do not delete files without explicit authorization",
+      "category": "safe_assumption",
+      "description": "Do not delete files without explicit authorization",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'do_not_delete_files_without_explicit_aut' → safe_assumption.",
+      "name": "do_not_delete_files_without_explicit_aut",
+      "question": null,
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "safe_assumptions",
+      "status": "safe_assumption",
+      "support": "recommended",
+      "text": "Do not delete files without explicit authorization",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "policy_default",
+      "assumption": "Do not call external services",
+      "category": "safe_assumption",
+      "description": "Do not call external services",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'do_not_call_external_services' → safe_assumption.",
+      "name": "do_not_call_external_services",
+      "question": null,
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "safe_assumptions",
+      "status": "safe_assumption",
+      "support": "recommended",
+      "text": "Do not call external services",
+      "value": null
+    }
+  ]
+}

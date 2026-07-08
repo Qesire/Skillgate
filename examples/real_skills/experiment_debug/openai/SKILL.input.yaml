@@ -1,0 +1,66 @@
+version: skill_input_contract.v1
+skill_id: experiment_debug
+skill_name: Experiment Debug
+activation:
+  triggers:
+  - An experiment run produces unexpected results, crashes, or non-deterministic output
+  - A user asks to debug a research pipeline, benchmark run, or evaluation script
+slots:
+- name: experiment_log_or_error_output
+  description: ''
+  necessity: recommended
+  answer_source: human_or_agent
+  missing_policy: discover_then_ask
+  support: explicit
+  confidence: 0.95
+  evidence: []
+- name: original_experiment_intent
+  description: ''
+  necessity: recommended
+  answer_source: human
+  missing_policy: ask_user
+  support: explicit
+  confidence: 0.95
+  evidence: []
+- name: smallest_relevant_input
+  description: ''
+  necessity: recommended
+  answer_source: human_or_agent
+  missing_policy: discover_then_ask
+  support: inferred
+  confidence: 0.85
+  evidence: []
+- name: failing_component_context
+  description: ''
+  necessity: recommended
+  answer_source: agent
+  missing_policy: discover_only
+  support: inferred
+  confidence: 0.8
+  evidence: []
+- name: authorization_for_modifications
+  description: ''
+  necessity: recommended
+  answer_source: authorization
+  missing_policy: ask_user
+  support: explicit
+  confidence: 1.0
+  evidence: []
+- name: random_seed_and_data_split
+  description: ''
+  necessity: recommended
+  answer_source: human_or_agent
+  missing_policy: discover_then_ask
+  support: inferred
+  confidence: 0.85
+  evidence: []
+- name: existing_dependencies
+  description: ''
+  necessity: recommended
+  answer_source: agent
+  missing_policy: discover_only
+  support: explicit
+  confidence: 0.95
+  evidence: []
+safe_defaults: []
+block_if: []

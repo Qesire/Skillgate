@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Verify signed release tag and version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag_object="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GITHUB_REF_NAME}" --jq '.object.sha')"
+          verified="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${tag_object}" --jq '.verification.verified')"
+          test "${verified}" = "true"
+          project_version="$(uv run --no-project python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          test "${GITHUB_REF_NAME}" = "v${project_version}"
+      - name: Install locked dependencies
+        run: uv sync --frozen --extra dev
+      - name: Test source
+        run: |
+          uv run python -m unittest discover -s tests
+          uv run python -m skillgate schemas --out exported-schemas
+          test "$(find exported-schemas -maxdepth 1 -name '*.json' | wc -l)" -eq 7
+          uv run python -m skillgate audit-skill examples/real_skills/bug_fix/SKILL.md --json
+          uv run python -m skillgate compile --skill-file examples/real_skills/bug_fix/SKILL.md --out .skillgate/release-smoke --json "这个报错帮我修一下"
+      - name: Build distributions
+        run: |
+          uv build --clear --no-sources
+      - name: Smoke test installed wheel
+        run: |
+          wheel="$(pwd)/$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+          smoke="$(mktemp -d)"
+          cd "$smoke"
+          uv run --python 3.12 --isolated --with "$wheel" skillgate --version
+          uv run --python 3.12 --isolated --with "$wheel" skillgate schemas --out exported-schemas
+          test "$(find exported-schemas -maxdepth 1 -name '*.json' | wc -l)" -eq 7
+      - name: Attest distributions
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-path: "dist/*"
+      - name: Preserve release artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: skillgate-${{ github.ref_name }}
+          path: dist/*
+          if-no-files-found: error
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --verify-tag --generate-notes

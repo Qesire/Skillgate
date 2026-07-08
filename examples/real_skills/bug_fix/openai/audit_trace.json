@@ -1,0 +1,287 @@
+{
+  "contract": {
+    "activation": {
+      "triggers": [
+        "A user reports a runtime error, crash, unexpected output, or broken behavior",
+        "A test fails unexpectedly because the source code is incorrect"
+      ]
+    },
+    "block_if": [],
+    "safe_defaults": [
+      "allowed_change_scope"
+    ],
+    "skill_id": "bug_fix",
+    "skill_name": "Bug Fix",
+    "slot_count": 5,
+    "slots": [
+      {
+        "answer_source": "human",
+        "confidence": 1.0,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "failure_symptom",
+        "necessity": "recommended",
+        "support": "explicit"
+      },
+      {
+        "answer_source": "agent",
+        "confidence": 1.0,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_only",
+        "name": "source_code_context",
+        "necessity": "recommended",
+        "support": "explicit"
+      },
+      {
+        "answer_source": "human_or_agent",
+        "confidence": 0.9,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_then_ask",
+        "name": "reproduction_command",
+        "necessity": "recommended",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 0.85,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "verification_expectation",
+        "necessity": "recommended",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "authorization",
+        "confidence": 1.0,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "authorization_to_modify_tests",
+        "necessity": "recommended",
+        "support": "explicit"
+      }
+    ]
+  },
+  "llm_backend": "OpenAILLM",
+  "model": "deepseek-chat",
+  "stages": [
+    {
+      "parsed": {
+        "activation_triggers": [
+          "A user reports a runtime error, crash, unexpected output, or broken behavior",
+          "A test fails unexpectedly because the source code is incorrect"
+        ],
+        "execution_steps": [
+          "Read and understand the reported symptom.",
+          "Reproduce the failure using the smallest relevant command.",
+          "Isolate the root cause.",
+          "Propose a minimal source fix.",
+          "Do not modify test expectations unless explicitly authorized.",
+          "Report the fix and verification result."
+        ],
+        "forbidden_actions": [
+          "Do not modify tests unless explicitly authorized.",
+          "Do not change public API surface.",
+          "Do not delete files.",
+          "Do not introduce new dependencies.",
+          "Do not call external services."
+        ],
+        "output_requirements": [
+          "Root cause analysis with evidence from source files",
+          "A minimal source change that fixes the reported behavior",
+          "The relevant test command and its result"
+        ],
+        "safety_constraints": [
+          "Prefer minimal source changes over broad refactors."
+        ],
+        "verification_statements": []
+      },
+      "raw": "```json\n{\n  \"activation_triggers\": [\n    \"A user reports a runtime error, crash, unexpected output, or broken behavior\",\n    \"A test fails unexpectedly because the source code is incorrect\"\n  ],\n  \"execution_steps\": [\n    \"Read and understand the reported symptom.\",\n    \"Reproduce the failure using the smallest relevant command.\",\n    \"Isolate the root cause.\",\n    \"Propose a minimal source fix.\",\n    \"Do not modify test expectations unless explicitly authorized.\",\n    \"Report the fix and verification result.\"\n  ],\n  \"output_requirements\": [\n    \"Root cause analysis with evidence from source files\",\n    \"A minimal source change that fixes the reported behavior\",\n    \"The relevant test command and its result\"\n  ],\n  \"forbidden_actions\": [\n    \"Do not modify tests unless explicitly authorized.\",\n    \"Do not change public API surface.\",\n    \"Do not delete files.\",\n    \"Do not introduce new dependencies.\",\n    \"Do not call external services.\"\n  ],\n  \"verification_statements\": [],\n  \"safety_constraints\": [\n    \"Prefer minimal source changes over broad refactors.\"\n  ]\n}\n```",
+      "stage": "extract"
+    },
+    {
+      "parsed": [
+        {
+          "description": "A clear description of the reported runtime error, crash, unexpected output, or broken behavior that the agent needs to reproduce and fix.",
+          "evidence": [
+            {
+              "quote": "Read and understand the reported symptom.",
+              "rationale": "The agent must read and understand the symptom, which implies the symptom must be provided as input before execution."
+            },
+            {
+              "quote": "A user reports a runtime error, crash, unexpected output, or broken behavior",
+              "rationale": "The activation trigger explicitly states that the agent responds to a user report of a failure, so the failure symptom is the core input."
+            }
+          ],
+          "name": "failure_symptom",
+          "necessity": "required"
+        },
+        {
+          "description": "Access to the relevant source code files and repository structure needed to isolate the root cause and propose a fix.",
+          "evidence": [
+            {
+              "quote": "Isolate the root cause.",
+              "rationale": "Isolating the root cause requires examining source code, so the agent needs access to the codebase."
+            },
+            {
+              "quote": "Root cause analysis with evidence from source files",
+              "rationale": "The output requirement explicitly mentions evidence from source files, meaning the source files must be available as input."
+            }
+          ],
+          "name": "source_code_context",
+          "necessity": "required"
+        },
+        {
+          "description": "The smallest relevant command or test invocation that reproduces the failure, or enough information to derive it.",
+          "evidence": [
+            {
+              "quote": "Reproduce the failure using the smallest relevant command.",
+              "rationale": "The agent must execute a reproduction command, which implies the command (or the information to construct it) must be provided."
+            }
+          ],
+          "name": "reproduction_command",
+          "necessity": "required"
+        },
+        {
+          "description": "The expected correct behavior or test result that the fix should achieve, used to verify the fix.",
+          "evidence": [
+            {
+              "quote": "Report the fix and verification result.",
+              "rationale": "To report a verification result, the agent needs to know what constitutes a successful verification, i.e., the expected outcome."
+            },
+            {
+              "quote": "The relevant test command and its result",
+              "rationale": "The output requirement includes the test result, which implies the agent must know what the correct result should be to compare against."
+            }
+          ],
+          "name": "verification_expectation",
+          "necessity": "required"
+        },
+        {
+          "description": "Explicit permission from the user to modify test files if needed, since modifying tests is forbidden by default.",
+          "evidence": [
+            {
+              "quote": "Do not modify tests unless explicitly authorized.",
+              "rationale": "This forbidden action implies that the agent must receive explicit authorization as an input before it can consider modifying tests."
+            }
+          ],
+          "name": "authorization_to_modify_tests",
+          "necessity": "required"
+        },
+        {
+          "description": "Guidance on the scope of changes permitted, such as whether only minimal source changes are allowed or broader refactors are acceptable.",
+          "evidence": [
+            {
+              "quote": "Prefer minimal source changes over broad refactors.",
+              "rationale": "This safety constraint implies the agent should know the scope of changes allowed, but it is a preference rather than a strict requirement for execution."
+            }
+          ],
+          "name": "allowed_change_scope",
+          "necessity": "recommended"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"failure_symptom\",\n    \"description\": \"A clear description of the reported runtime error, crash, unexpected output, or broken behavior that the agent needs to reproduce and fix.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Read and understand the reported symptom.\",\n        \"rationale\": \"The agent must read and understand the symptom, which implies the symptom must be provided as input before execution.\"\n      },\n      {\n        \"quote\": \"A user reports a runtime error, crash, unexpected output, or broken behavior\",\n        \"rationale\": \"The activation trigger explicitly states that the agent responds to a user report of a failure, so the failure symptom is the core input.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"source_code_context\",\n    \"description\": \"Access to the relevant source code files and repository structure needed to isolate the root cause and propose a fix.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Isolate the root cause.\",\n        \"rationale\": \"Isolating the root cause requires examining source code, so the agent needs access to the codebase.\"\n      },\n      {\n        \"quote\": \"Root cause analysis with evidence from source files\",\n        \"rationale\": \"The output requirement explicitly mentions evidence from source files, meaning the source files must be available as input.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"reproduction_command\",\n    \"description\": \"The smallest relevant command or test invocation that reproduces the failure, or enough information to derive it.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Reproduce the failure using the smallest relevant command.\",\n        \"rationale\": \"The agent must execute a reproduction command, which implies the command (or the information to construct it) must be provided.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"verification_expectation\",\n    \"description\": \"The expected correct behavior or test result that the fix should achieve, used to verify the fix.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Report the fix and verification result.\",\n        \"rationale\": \"To report a verification result, the agent needs to know what constitutes a successful verification, i.e., the expected outcome.\"\n      },\n      {\n        \"quote\": \"The relevant test command and its result\",\n        \"rationale\": \"The output requirement includes the test result, which implies the agent must know what the correct result should be to compare against.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"authorization_to_modify_tests\",\n    \"description\": \"Explicit permission from the user to modify test files if needed, since modifying tests is forbidden by default.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Do not modify tests unless explicitly authorized.\",\n        \"rationale\": \"This forbidden action implies that the agent must receive explicit authorization as an input before it can consider modifying tests.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"allowed_change_scope\",\n    \"description\": \"Guidance on the scope of changes permitted, such as whether only minimal source changes are allowed or broader refactors are acceptable.\",\n    \"necessity\": \"recommended\",\n    \"evidence\": [\n      {\n        \"quote\": \"Prefer minimal source changes over broad refactors.\",\n        \"rationale\": \"This safety constraint implies the agent should know the scope of changes allowed, but it is a preference rather than a strict requirement for execution.\"\n      }\n    ]\n  }\n]\n```",
+      "stage": "infer"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human",
+          "confidence": 1.0,
+          "missing_policy": "ask_user",
+          "name": "failure_symptom",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "agent",
+          "confidence": 1.0,
+          "missing_policy": "discover_only",
+          "name": "source_code_context",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.9,
+          "missing_policy": "discover_then_ask",
+          "name": "reproduction_command",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.85,
+          "missing_policy": "ask_user",
+          "name": "verification_expectation",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "authorization",
+          "confidence": 1.0,
+          "missing_policy": "ask_user",
+          "name": "authorization_to_modify_tests",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.95,
+          "missing_policy": "assume_default",
+          "name": "allowed_change_scope",
+          "support": "explicit"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"failure_symptom\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"source_code_context\",\n    \"answer_source\": \"agent\",\n    \"missing_policy\": \"discover_only\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"reproduction_command\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.9\n  },\n  {\n    \"name\": \"verification_expectation\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.85\n  },\n  {\n    \"name\": \"authorization_to_modify_tests\",\n    \"answer_source\": \"authorization\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"allowed_change_scope\",\n    \"answer_source\": \"policy_default\",\n    \"missing_policy\": \"assume_default\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  }\n]\n```",
+      "stage": "classify"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human",
+          "confidence": 1.0,
+          "missing_policy": "ask_user",
+          "name": "failure_symptom",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "agent",
+          "confidence": 1.0,
+          "missing_policy": "discover_only",
+          "name": "source_code_context",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.9,
+          "missing_policy": "discover_then_ask",
+          "name": "reproduction_command",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.85,
+          "missing_policy": "ask_user",
+          "name": "verification_expectation",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "authorization",
+          "confidence": 1.0,
+          "missing_policy": "ask_user",
+          "name": "authorization_to_modify_tests",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.95,
+          "missing_policy": "assume_default",
+          "name": "allowed_change_scope",
+          "support": "explicit"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"failure_symptom\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"source_code_context\",\n    \"answer_source\": \"agent\",\n    \"missing_policy\": \"discover_only\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"reproduction_command\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.9\n  },\n  {\n    \"name\": \"verification_expectation\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.85\n  },\n  {\n    \"name\": \"authorization_to_modify_tests\",\n    \"answer_source\": \"authorization\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"allowed_change_scope\",\n    \"answer_source\": \"policy_default\",\n    \"missing_policy\": \"assume_default\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  }\n]\n```",
+      "stage": "critique"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - name: Install
+        run: uv sync --frozen --extra dev
+      - name: Unit tests
+        run: uv run python -m unittest discover -s tests
+      - name: Core schema export
+        run: |
+          uv run python -m skillgate schemas --out exported-schemas
+          test "$(find exported-schemas -maxdepth 1 -name '*.json' | wc -l)" -eq 7
+      - name: Core CLI smoke
+        run: |
+          uv run python -m skillgate audit-skill examples/real_skills/bug_fix/SKILL.md --json
+          uv run python -m skillgate compile --skill-file examples/real_skills/bug_fix/SKILL.md --out .skillgate/ci-smoke --json "这个报错帮我修一下"
+      - name: Build distributions
+        run: uv build
+      - name: Installed wheel smoke test
+        run: |
+          wheel="$(pwd)/$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+          smoke="$(mktemp -d)"
+          cd "$smoke"
+          uv run --python "${{ matrix.python-version }}" --isolated --with "$wheel" skillgate --version
+          uv run --python "${{ matrix.python-version }}" --isolated --with "$wheel" skillgate schemas --out exported-schemas
+          test "$(find exported-schemas -maxdepth 1 -name '*.json' | wc -l)" -eq 7

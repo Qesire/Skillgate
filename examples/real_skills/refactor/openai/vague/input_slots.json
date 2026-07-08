@@ -1,0 +1,27 @@
+{
+  "decision_kind": "ask_user",
+  "decision_reason": "Authorization is required before proceeding.",
+  "schema_version": "skillgate.input_slot_state.v1",
+  "skill_id": "refactor",
+  "slot_count": 1,
+  "slots": [
+    {
+      "ambiguity": "low",
+      "answer_source": "authorization",
+      "assumption": null,
+      "category": "requires_authorization",
+      "description": "",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'allowed_change_scope' → requires_authorization.",
+      "name": "allowed_change_scope",
+      "question": "",
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "requires_authorization",
+      "status": "requires_authorization",
+      "support": "explicit",
+      "text": "",
+      "value": null
+    }
+  ]
+}

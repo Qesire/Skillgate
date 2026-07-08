@@ -1,0 +1,33 @@
+version: skill_input_contract.v1
+skill_id: documentation_update
+skill_name: Documentation Update
+activation:
+  triggers:
+  - A user asks to update README, installation docs, contribution guides, or API docs
+  - A user requests new documentation sections with specific content descriptions
+slots:
+- name: target_document
+  description: Which document should be updated
+  necessity: required
+  answer_source: human
+  missing_policy: ask_user
+  support: inferred
+  confidence: 0.9
+  evidence:
+  - quote: Identify the target document and the intended audience.
+    rationale: Agent needs to know which document to update
+- name: audience
+  description: 'Who is the target audience: developers, users, contributors'
+  necessity: required
+  answer_source: human
+  missing_policy: ask_user
+  support: inferred
+  confidence: 0.88
+  evidence:
+  - quote: Identify the target document and the intended audience.
+    rationale: Audience shapes the content and tone of the documentation
+safe_defaults:
+- Only use facts grounded in repo files
+- Do not invent metrics, adoption numbers, or benchmark results
+block_if:
+- Fabricating unsupported project claims

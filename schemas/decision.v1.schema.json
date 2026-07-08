@@ -1,0 +1,101 @@
+{
+  "$defs": {
+    "statement": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "evidence_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "text": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "evidence_ids",
+        "confidence"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "urn:skillgate:schema:decision:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "assumptions": {
+      "items": {
+        "$ref": "#/$defs/statement"
+      },
+      "type": "array"
+    },
+    "blocking_slots": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 0,
+      "type": "array"
+    },
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "type": "number"
+    },
+    "kind": {
+      "enum": [
+        "ask_user",
+        "assume_and_continue",
+        "block_unsafe",
+        "compile_directly",
+        "explore_first"
+      ]
+    },
+    "questions": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 0,
+      "type": "array"
+    },
+    "readonly_exploration_plan": {
+      "items": {
+        "$ref": "#/$defs/statement"
+      },
+      "type": "array"
+    },
+    "reason": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "skill_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "stop_conditions": {
+      "items": {
+        "$ref": "#/$defs/statement"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "kind",
+    "reason",
+    "confidence",
+    "questions"
+  ],
+  "title": "SkillGate Compile Decision",
+  "type": "object"
+}

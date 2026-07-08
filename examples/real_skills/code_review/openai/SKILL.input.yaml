@@ -1,0 +1,42 @@
+version: skill_input_contract.v1
+skill_id: code_review
+skill_name: Code Review
+activation:
+  triggers:
+  - A user asks to review code changes, a PR, or a diff
+  - A user requests a security audit or correctness check on specific files
+slots:
+- name: review_target
+  description: ''
+  necessity: recommended
+  answer_source: human_or_agent
+  missing_policy: discover_then_ask
+  support: inferred
+  confidence: 0.85
+  evidence: []
+- name: review_focus
+  description: ''
+  necessity: recommended
+  answer_source: human
+  missing_policy: ask_user
+  support: explicit
+  confidence: 0.95
+  evidence: []
+- name: severity_bar
+  description: ''
+  necessity: recommended
+  answer_source: human
+  missing_policy: ask_user
+  support: inferred
+  confidence: 0.8
+  evidence: []
+- name: code_content
+  description: ''
+  necessity: recommended
+  answer_source: agent
+  missing_policy: discover_only
+  support: explicit
+  confidence: 1.0
+  evidence: []
+safe_defaults: []
+block_if: []

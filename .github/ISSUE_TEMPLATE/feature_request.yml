@@ -1,0 +1,41 @@
+name: Feature request
+description: Propose a scoped core SkillGate change.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and user
+      description: Describe the failure mode and who encounters it.
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Proposed behavioral contract
+      description: State inputs, outputs, failure behavior, and compatibility implications.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - audit-skill
+        - compile
+        - clarification
+        - inspect
+        - explain
+        - schemas
+        - packaging or CI
+        - documentation only
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Safety boundaries
+      description: List new permissions, side effects, or leakage risks this change must not introduce.
+    validations:
+      required: true

@@ -1,0 +1,45 @@
+{
+  "decision_kind": "ask_user",
+  "decision_reason": "Some required inputs need to be provided by the user.",
+  "schema_version": "skillgate.input_slot_state.v1",
+  "skill_id": "code_review",
+  "slot_count": 2,
+  "slots": [
+    {
+      "ambiguity": "low",
+      "answer_source": "human",
+      "assumption": null,
+      "category": "human_askable",
+      "description": "",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'review_focus' → human_askable.",
+      "name": "review_focus",
+      "question": "",
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "human_askable",
+      "status": "human_askable",
+      "support": "explicit",
+      "text": "",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "human",
+      "assumption": null,
+      "category": "human_askable",
+      "description": "",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'severity_bar' → human_askable.",
+      "name": "severity_bar",
+      "question": "",
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "human_askable",
+      "status": "human_askable",
+      "support": "inferred",
+      "text": "",
+      "value": null
+    }
+  ]
+}

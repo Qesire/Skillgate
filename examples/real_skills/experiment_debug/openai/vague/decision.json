@@ -1,0 +1,9 @@
+{
+  "confidence": 0.9,
+  "kind": "ask_user",
+  "questions": [
+    ""
+  ],
+  "reason": "Authorization is required before proceeding.",
+  "skill_id": "experiment_debug"
+}

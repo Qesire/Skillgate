@@ -1,0 +1,44 @@
+version: skill_input_contract.v1
+skill_id: code_review
+skill_name: Code Review
+activation:
+  triggers:
+  - A user asks to review code changes, a PR, or a diff
+  - A user requests a security audit or correctness check on specific files
+slots:
+- name: review_target
+  description: Which files, diff, or PR should be reviewed
+  necessity: required
+  answer_source: human_or_agent
+  missing_policy: discover_then_ask
+  support: inferred
+  confidence: 0.85
+  evidence:
+  - quote: Identify the review target (files, diff, PR).
+    rationale: Agent needs to know what to review
+- name: review_focus
+  description: 'Review focus: correctness, security, performance, maintainability,
+    or API risk'
+  necessity: required
+  answer_source: human
+  missing_policy: ask_user
+  support: inferred
+  confidence: 0.9
+  evidence:
+  - quote: 'Analyze for the requested focus: correctness, security, performance, maintainability,
+      or API risk.'
+    rationale: Focus determines what findings to surface
+- name: severity_bar
+  description: Minimum severity of findings that should be reported
+  necessity: recommended
+  answer_source: human
+  missing_policy: ask_user
+  support: inferred
+  confidence: 0.78
+  evidence:
+  - quote: Report only findings that meet the severity bar.
+    rationale: Severity threshold controls review scope and noise
+safe_defaults:
+- Review is read-only; do not modify any files
+block_if:
+- Do not print full secret values

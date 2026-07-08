@@ -1,0 +1,44 @@
+version: skill_input_contract.v1
+skill_id: refactor
+skill_name: Refactor
+activation:
+  triggers:
+  - A user asks to restructure, rename, or simplify code
+  - A user requests deduplication or code reorganization
+  - A user asks to improve naming or modularity
+slots:
+- name: target_scope
+  description: What code should be refactored
+  necessity: required
+  answer_source: human
+  missing_policy: ask_user
+  support: inferred
+  confidence: 0.9
+  evidence:
+  - quote: Identify the refactoring target and goal.
+    rationale: Agent needs to know what to refactor
+- name: refactor_goal
+  description: 'What improvement: naming, structure, deduplication, performance'
+  necessity: required
+  answer_source: human
+  missing_policy: ask_user
+  support: inferred
+  confidence: 0.88
+  evidence:
+  - quote: Identify the refactoring target and goal.
+    rationale: Goal drives the refactoring approach
+- name: behavior_preservation
+  description: Must behavior be strictly preserved
+  necessity: recommended
+  answer_source: human
+  missing_policy: ask_user
+  support: explicit
+  confidence: 0.85
+  evidence:
+  - quote: Behavior must be strictly preserved.
+    rationale: Core constraint of the refactor skill
+safe_defaults:
+- Do not delete files without explicit authorization
+- Keep changes localized; do not perform broad refactors unless requested
+block_if:
+- Do not batch move or rename files without authorization

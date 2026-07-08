@@ -1,0 +1,9 @@
+{
+  "confidence": 0.85,
+  "kind": "ask_user",
+  "questions": [
+    "Minimum severity of findings that should be reported"
+  ],
+  "reason": "Some required inputs need to be provided by the user.",
+  "skill_id": "code_review"
+}

@@ -1,0 +1,155 @@
+{
+  "$id": "urn:skillgate:schema:clarifications:v2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "answer_file": {
+      "const": "clarification_answers.json"
+    },
+    "decision_kind": {
+      "enum": [
+        "ask_user",
+        "assume_and_continue",
+        "block_unsafe",
+        "compile_directly",
+        "explore_first"
+      ]
+    },
+    "migrated_from": {
+      "const": "skillgate.clarifications.v1"
+    },
+    "questions": {
+      "items": {
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "answered"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "answer": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "answer_sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "open"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "answer": {
+                  "type": "null"
+                },
+                "answer_sha256": {
+                  "type": "null"
+                },
+                "redacted": {
+                  "const": false
+                }
+              }
+            }
+          }
+        ],
+        "properties": {
+          "answer": {
+            "oneOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answer_sha256": {
+            "oneOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "redacted": {
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "answered"
+            ]
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "status",
+          "answer",
+          "answer_sha256",
+          "redacted"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "redaction_policy": {
+      "enum": [
+        "reject_secret_like_by_default",
+        "explicit_redaction_applied",
+        "legacy_unchecked"
+      ]
+    },
+    "run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "skillgate.clarifications.v2"
+    },
+    "status": {
+      "enum": [
+        "open",
+        "answered",
+        "not_required"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "decision_kind",
+    "status",
+    "questions",
+    "answer_file",
+    "redaction_policy"
+  ],
+  "title": "SkillGate Clarification Packet",
+  "type": "object"
+}

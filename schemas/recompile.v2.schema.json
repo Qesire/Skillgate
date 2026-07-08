@@ -1,0 +1,76 @@
+{
+  "$id": "urn:skillgate:schema:recompile:v2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "answers": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "answer_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "question": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "question_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "redacted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "question_id",
+          "question",
+          "answer_sha256",
+          "redacted"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "child_run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "original_request_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "parent_run_dir": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "parent_run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "redacted_answers": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "resolved_request_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "skillgate.recompile.v2"
+    }
+  },
+  "required": [
+    "schema_version",
+    "parent_run_id",
+    "parent_run_dir",
+    "child_run_id",
+    "original_request_sha256",
+    "resolved_request_sha256",
+    "redacted_answers",
+    "answers"
+  ],
+  "title": "SkillGate Recompile Metadata",
+  "type": "object"
+}

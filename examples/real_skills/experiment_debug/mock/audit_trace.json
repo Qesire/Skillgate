@@ -1,0 +1,359 @@
+{
+  "contract": {
+    "activation": {
+      "triggers": [
+        "An experiment run produces unexpected results, crashes, or non-deterministic output",
+        "A user asks to debug a research pipeline, benchmark run, or evaluation script"
+      ]
+    },
+    "block_if": [
+      "Do not introduce new dependencies",
+      "Do not delete experiment results or logs"
+    ],
+    "safe_defaults": [
+      "Do not change the experiment protocol or evaluation metric",
+      "Do not alter the experiment's random seed or data split"
+    ],
+    "skill_id": "experiment_debug",
+    "skill_name": "Experiment Debug",
+    "slot_count": 2,
+    "slots": [
+      {
+        "answer_source": "human",
+        "confidence": 0.91,
+        "description": "The experiment failure symptom: error message, unexpected results, crash, non-deterministic output",
+        "evidence": [
+          {
+            "quote": "Read the experiment log or error output.",
+            "rationale": "Agent needs to know what went wrong before debugging"
+          }
+        ],
+        "missing_policy": "ask_user",
+        "name": "failure_symptom",
+        "necessity": "required",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "human_or_agent",
+        "confidence": 0.8,
+        "description": "Which component failed: data loading, model inference, scoring, or output serialization",
+        "evidence": [
+          {
+            "quote": "Identify the failing component: data loading, model inference, scoring, or output serialization.",
+            "rationale": "Narrowing the component speeds up debugging"
+          }
+        ],
+        "missing_policy": "discover_then_ask",
+        "name": "failing_component",
+        "necessity": "recommended",
+        "support": "inferred"
+      }
+    ]
+  },
+  "llm_backend": "MockLLM",
+  "stages": [
+    {
+      "parsed": {
+        "activation_triggers": [
+          "An experiment run produces unexpected results, crashes, or non-deterministic output",
+          "A user asks to debug a research pipeline, benchmark run, or evaluation script"
+        ],
+        "execution_steps": [
+          "Read the experiment log or error output.",
+          "Identify the failing component: data loading, model inference, scoring, or output serialization.",
+          "Reproduce the failure with the smallest relevant input.",
+          "Isolate the root cause.",
+          "Propose a minimal fix."
+        ],
+        "forbidden_actions": [
+          "Change the experiment protocol or evaluation metric",
+          "Modify benchmark scores or expected outputs without explicit authorization",
+          "Alter the experiment's random seed or data split",
+          "Delete experiment results or logs",
+          "Introduce new dependencies"
+        ],
+        "output_requirements": [
+          "Root cause analysis with log evidence",
+          "A minimal fix that preserves the original experiment intent",
+          "The smallest reproduction command and its result after fix"
+        ],
+        "safety_constraints": [
+          "Do not change the experiment protocol or evaluation metric.",
+          "Do not modify benchmark scores or expected outputs without explicit authorization.",
+          "Do not alter the experiment's random seed or data split.",
+          "Do not delete experiment results or logs."
+        ],
+        "verification_statements": [
+          "Reproduce the failure with the smallest relevant input.",
+          "Report root cause analysis with log evidence."
+        ]
+      },
+      "raw": "{\"activation_triggers\": [\"An experiment run produces unexpected results, crashes, or non-deterministic output\", \"A user asks to debug a research pipeline, benchmark run, or evaluation script\"], \"execution_steps\": [\"Read the experiment log or error output.\", \"Identify the failing component: data loading, model inference, scoring, or output serialization.\", \"Reproduce the failure with the smallest relevant input.\", \"Isolate the root cause.\", \"Propose a minimal fix.\"], \"output_requirements\": [\"Root cause analysis with log evidence\", \"A minimal fix that preserves the original experiment intent\", \"The smallest reproduction command and its result after fix\"], \"forbidden_actions\": [\"Change the experiment protocol or evaluation metric\", \"Modify benchmark scores or expected outputs without explicit authorization\", \"Alter the experiment's random seed or data split\", \"Delete experiment results or logs\", \"Introduce new dependencies\"], \"verification_statements\": [\"Reproduce the failure with the smallest relevant input.\", \"Report root cause analysis with log evidence.\"], \"safety_constraints\": [\"Do not change the experiment protocol or evaluation metric.\", \"Do not modify benchmark scores or expected outputs without explicit authorization.\", \"Do not alter the experiment's random seed or data split.\", \"Do not delete experiment results or logs.\"]}",
+      "stage": "extract"
+    },
+    {
+      "parsed": [
+        {
+          "description": "The experiment failure symptom: error message, unexpected results, crash, non-deterministic output",
+          "evidence": [
+            {
+              "quote": "Read the experiment log or error output.",
+              "rationale": "Agent needs to know what went wrong before debugging"
+            }
+          ],
+          "name": "failure_symptom",
+          "necessity": "required"
+        },
+        {
+          "description": "Which component failed: data loading, model inference, scoring, or output serialization",
+          "evidence": [
+            {
+              "quote": "Identify the failing component: data loading, model inference, scoring, or output serialization.",
+              "rationale": "Narrowing the component speeds up debugging"
+            }
+          ],
+          "name": "failing_component",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Do not change the experiment protocol or evaluation metric",
+          "evidence": [
+            {
+              "quote": "Do not change the experiment protocol or evaluation metric.",
+              "rationale": "Explicit constraint preserving experiment integrity"
+            }
+          ],
+          "name": "preserve_protocol",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Do not alter the experiment's random seed or data split",
+          "evidence": [
+            {
+              "quote": "Do not alter the experiment's random seed or data split.",
+              "rationale": "Explicit constraint maintaining reproducibility"
+            }
+          ],
+          "name": "no_seed_change",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Do not introduce new dependencies",
+          "evidence": [
+            {
+              "quote": "Do not introduce new dependencies.",
+              "rationale": "Explicit constraint keeping the fix minimal"
+            }
+          ],
+          "name": "no_dep_change",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Do not delete experiment results or logs",
+          "evidence": [
+            {
+              "quote": "Do not delete experiment results or logs.",
+              "rationale": "Explicit constraint preserving audit trail"
+            }
+          ],
+          "name": "preserve_results",
+          "necessity": "recommended"
+        }
+      ],
+      "raw": "[{\"name\": \"failure_symptom\", \"description\": \"The experiment failure symptom: error message, unexpected results, crash, non-deterministic output\", \"necessity\": \"required\", \"evidence\": [{\"quote\": \"Read the experiment log or error output.\", \"rationale\": \"Agent needs to know what went wrong before debugging\"}]}, {\"name\": \"failing_component\", \"description\": \"Which component failed: data loading, model inference, scoring, or output serialization\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Identify the failing component: data loading, model inference, scoring, or output serialization.\", \"rationale\": \"Narrowing the component speeds up debugging\"}]}, {\"name\": \"preserve_protocol\", \"description\": \"Do not change the experiment protocol or evaluation metric\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Do not change the experiment protocol or evaluation metric.\", \"rationale\": \"Explicit constraint preserving experiment integrity\"}]}, {\"name\": \"no_seed_change\", \"description\": \"Do not alter the experiment's random seed or data split\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Do not alter the experiment's random seed or data split.\", \"rationale\": \"Explicit constraint maintaining reproducibility\"}]}, {\"name\": \"no_dep_change\", \"description\": \"Do not introduce new dependencies\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Do not introduce new dependencies.\", \"rationale\": \"Explicit constraint keeping the fix minimal\"}]}, {\"name\": \"preserve_results\", \"description\": \"Do not delete experiment results or logs\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Do not delete experiment results or logs.\", \"rationale\": \"Explicit constraint preserving audit trail\"}]}]",
+      "stage": "infer"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human",
+          "confidence": 0.91,
+          "description": "The experiment failure symptom: error message, unexpected results, crash, non-deterministic output",
+          "evidence": [
+            {
+              "quote": "Read the experiment log or error output.",
+              "rationale": "Agent needs to know what went wrong before debugging"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "failure_symptom",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.8,
+          "description": "Which component failed: data loading, model inference, scoring, or output serialization",
+          "evidence": [
+            {
+              "quote": "Identify the failing component: data loading, model inference, scoring, or output serialization.",
+              "rationale": "Narrowing the component speeds up debugging"
+            }
+          ],
+          "missing_policy": "discover_then_ask",
+          "name": "failing_component",
+          "necessity": "recommended",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.94,
+          "description": "Do not change the experiment protocol or evaluation metric",
+          "evidence": [
+            {
+              "quote": "Do not change the experiment protocol or evaluation metric.",
+              "rationale": "Explicit constraint preserving experiment integrity"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "preserve_protocol",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.92,
+          "description": "Do not alter the experiment's random seed or data split",
+          "evidence": [
+            {
+              "quote": "Do not alter the experiment's random seed or data split.",
+              "rationale": "Explicit constraint maintaining reproducibility"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "no_seed_change",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "blocked",
+          "confidence": 0.93,
+          "description": "Do not introduce new dependencies",
+          "evidence": [
+            {
+              "quote": "Do not introduce new dependencies.",
+              "rationale": "Explicit constraint keeping the fix minimal"
+            }
+          ],
+          "missing_policy": "block",
+          "name": "no_dep_change",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "blocked",
+          "confidence": 0.91,
+          "description": "Do not delete experiment results or logs",
+          "evidence": [
+            {
+              "quote": "Do not delete experiment results or logs.",
+              "rationale": "Explicit constraint preserving audit trail"
+            }
+          ],
+          "missing_policy": "block",
+          "name": "preserve_results",
+          "necessity": "recommended",
+          "support": "explicit"
+        }
+      ],
+      "raw": "[{\"name\": \"failure_symptom\", \"description\": \"The experiment failure symptom: error message, unexpected results, crash, non-deterministic output\", \"necessity\": \"required\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.91, \"evidence\": [{\"quote\": \"Read the experiment log or error output.\", \"rationale\": \"Agent needs to know what went wrong before debugging\"}]}, {\"name\": \"failing_component\", \"description\": \"Which component failed: data loading, model inference, scoring, or output serialization\", \"necessity\": \"recommended\", \"answer_source\": \"human_or_agent\", \"missing_policy\": \"discover_then_ask\", \"support\": \"inferred\", \"confidence\": 0.8, \"evidence\": [{\"quote\": \"Identify the failing component: data loading, model inference, scoring, or output serialization.\", \"rationale\": \"Narrowing the component speeds up debugging\"}]}, {\"name\": \"preserve_protocol\", \"description\": \"Do not change the experiment protocol or evaluation metric\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.94, \"evidence\": [{\"quote\": \"Do not change the experiment protocol or evaluation metric.\", \"rationale\": \"Explicit constraint preserving experiment integrity\"}]}, {\"name\": \"no_seed_change\", \"description\": \"Do not alter the experiment's random seed or data split\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.92, \"evidence\": [{\"quote\": \"Do not alter the experiment's random seed or data split.\", \"rationale\": \"Explicit constraint maintaining reproducibility\"}]}, {\"name\": \"no_dep_change\", \"description\": \"Do not introduce new dependencies\", \"necessity\": \"recommended\", \"answer_source\": \"blocked\", \"missing_policy\": \"block\", \"support\": \"explicit\", \"confidence\": 0.93, \"evidence\": [{\"quote\": \"Do not introduce new dependencies.\", \"rationale\": \"Explicit constraint keeping the fix minimal\"}]}, {\"name\": \"preserve_results\", \"description\": \"Do not delete experiment results or logs\", \"necessity\": \"recommended\", \"answer_source\": \"blocked\", \"missing_policy\": \"block\", \"support\": \"explicit\", \"confidence\": 0.91, \"evidence\": [{\"quote\": \"Do not delete experiment results or logs.\", \"rationale\": \"Explicit constraint preserving audit trail\"}]}]",
+      "stage": "classify"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human",
+          "confidence": 0.91,
+          "description": "The experiment failure symptom: error message, unexpected results, crash, non-deterministic output",
+          "evidence": [
+            {
+              "quote": "Read the experiment log or error output.",
+              "rationale": "Agent needs to know what went wrong before debugging"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "failure_symptom",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.8,
+          "description": "Which component failed: data loading, model inference, scoring, or output serialization",
+          "evidence": [
+            {
+              "quote": "Identify the failing component: data loading, model inference, scoring, or output serialization.",
+              "rationale": "Narrowing the component speeds up debugging"
+            }
+          ],
+          "missing_policy": "discover_then_ask",
+          "name": "failing_component",
+          "necessity": "recommended",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.94,
+          "description": "Do not change the experiment protocol or evaluation metric",
+          "evidence": [
+            {
+              "quote": "Do not change the experiment protocol or evaluation metric.",
+              "rationale": "Explicit constraint preserving experiment integrity"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "preserve_protocol",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.92,
+          "description": "Do not alter the experiment's random seed or data split",
+          "evidence": [
+            {
+              "quote": "Do not alter the experiment's random seed or data split.",
+              "rationale": "Explicit constraint maintaining reproducibility"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "no_seed_change",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "blocked",
+          "confidence": 0.93,
+          "description": "Do not introduce new dependencies",
+          "evidence": [
+            {
+              "quote": "Do not introduce new dependencies.",
+              "rationale": "Explicit constraint keeping the fix minimal"
+            }
+          ],
+          "missing_policy": "block",
+          "name": "no_dep_change",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "blocked",
+          "confidence": 0.91,
+          "description": "Do not delete experiment results or logs",
+          "evidence": [
+            {
+              "quote": "Do not delete experiment results or logs.",
+              "rationale": "Explicit constraint preserving audit trail"
+            }
+          ],
+          "missing_policy": "block",
+          "name": "preserve_results",
+          "necessity": "recommended",
+          "support": "explicit"
+        }
+      ],
+      "raw": "[{\"name\": \"failure_symptom\", \"description\": \"The experiment failure symptom: error message, unexpected results, crash, non-deterministic output\", \"necessity\": \"required\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.91, \"evidence\": [{\"quote\": \"Read the experiment log or error output.\", \"rationale\": \"Agent needs to know what went wrong before debugging\"}]}, {\"name\": \"failing_component\", \"description\": \"Which component failed: data loading, model inference, scoring, or output serialization\", \"necessity\": \"recommended\", \"answer_source\": \"human_or_agent\", \"missing_policy\": \"discover_then_ask\", \"support\": \"inferred\", \"confidence\": 0.8, \"evidence\": [{\"quote\": \"Identify the failing component: data loading, model inference, scoring, or output serialization.\", \"rationale\": \"Narrowing the component speeds up debugging\"}]}, {\"name\": \"preserve_protocol\", \"description\": \"Do not change the experiment protocol or evaluation metric\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.94, \"evidence\": [{\"quote\": \"Do not change the experiment protocol or evaluation metric.\", \"rationale\": \"Explicit constraint preserving experiment integrity\"}]}, {\"name\": \"no_seed_change\", \"description\": \"Do not alter the experiment's random seed or data split\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.92, \"evidence\": [{\"quote\": \"Do not alter the experiment's random seed or data split.\", \"rationale\": \"Explicit constraint maintaining reproducibility\"}]}, {\"name\": \"no_dep_change\", \"description\": \"Do not introduce new dependencies\", \"necessity\": \"recommended\", \"answer_source\": \"blocked\", \"missing_policy\": \"block\", \"support\": \"explicit\", \"confidence\": 0.93, \"evidence\": [{\"quote\": \"Do not introduce new dependencies.\", \"rationale\": \"Explicit constraint keeping the fix minimal\"}]}, {\"name\": \"preserve_results\", \"description\": \"Do not delete experiment results or logs\", \"necessity\": \"recommended\", \"answer_source\": \"blocked\", \"missing_policy\": \"block\", \"support\": \"explicit\", \"confidence\": 0.91, \"evidence\": [{\"quote\": \"Do not delete experiment results or logs.\", \"rationale\": \"Explicit constraint preserving audit trail\"}]}]",
+      "stage": "critique"
+    }
+  ]
+}

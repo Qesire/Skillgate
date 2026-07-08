@@ -1,0 +1,63 @@
+{
+  "decision_kind": "ask_user",
+  "decision_reason": "Some required inputs need to be provided by the user.",
+  "schema_version": "skillgate.input_slot_state.v1",
+  "skill_id": "code_review",
+  "slot_count": 3,
+  "slots": [
+    {
+      "ambiguity": "low",
+      "answer_source": "human",
+      "assumption": null,
+      "category": "human_askable",
+      "description": "Review focus: correctness, security, performance, maintainability, or API risk",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'review_focus' is human_askable (support: inferred, answer: human).",
+      "name": "review_focus",
+      "question": "Review focus: correctness, security, performance, maintainability, or API risk",
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "human_askable",
+      "status": "human_askable",
+      "support": "inferred",
+      "text": "Review focus: correctness, security, performance, maintainability, or API risk",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "human",
+      "assumption": null,
+      "category": "human_askable",
+      "description": "Minimum severity of findings that should be reported",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'severity_bar' → human_askable.",
+      "name": "severity_bar",
+      "question": "Minimum severity of findings that should be reported",
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "human_askable",
+      "status": "human_askable",
+      "support": "inferred",
+      "text": "Minimum severity of findings that should be reported",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "policy_default",
+      "assumption": "Review is read-only; do not modify any files",
+      "category": "safe_assumption",
+      "description": "Review is read-only; do not modify any files",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'review_is_read_only;_do_not_modify_any_f' → safe_assumption.",
+      "name": "review_is_read_only;_do_not_modify_any_f",
+      "question": null,
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "safe_assumptions",
+      "status": "safe_assumption",
+      "support": "recommended",
+      "text": "Review is read-only; do not modify any files",
+      "value": null
+    }
+  ]
+}

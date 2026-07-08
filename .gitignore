@@ -1,0 +1,25 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# SkillGate generated runs and local evaluation output
+.skillgate/
+**/.skillgate/
+
+# Local secrets and environment
+.env
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+.npmrc
+.pypirc

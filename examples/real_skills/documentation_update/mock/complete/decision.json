@@ -1,0 +1,7 @@
+{
+  "confidence": 0.82,
+  "kind": "assume_and_continue",
+  "questions": [],
+  "reason": "Only low-risk gaps remain; conservative assumptions are recorded.",
+  "skill_id": "documentation_update"
+}

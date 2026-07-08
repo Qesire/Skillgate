@@ -1,0 +1,63 @@
+{
+  "decision_kind": "ask_user",
+  "decision_reason": "Some required inputs need to be provided by the user.",
+  "schema_version": "skillgate.input_slot_state.v1",
+  "skill_id": "documentation_update",
+  "slot_count": 3,
+  "slots": [
+    {
+      "ambiguity": "low",
+      "answer_source": "human",
+      "assumption": null,
+      "category": "human_askable",
+      "description": "Who is the target audience: developers, users, contributors",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'audience' is human_askable (support: inferred, answer: human).",
+      "name": "audience",
+      "question": "Who is the target audience: developers, users, contributors",
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "human_askable",
+      "status": "human_askable",
+      "support": "inferred",
+      "text": "Who is the target audience: developers, users, contributors",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "policy_default",
+      "assumption": "Only use facts grounded in repo files",
+      "category": "safe_assumption",
+      "description": "Only use facts grounded in repo files",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'only_use_facts_grounded_in_repo_files' → safe_assumption.",
+      "name": "only_use_facts_grounded_in_repo_files",
+      "question": null,
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "safe_assumptions",
+      "status": "safe_assumption",
+      "support": "recommended",
+      "text": "Only use facts grounded in repo files",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "policy_default",
+      "assumption": "Do not invent metrics, adoption numbers, or benchmark results",
+      "category": "safe_assumption",
+      "description": "Do not invent metrics, adoption numbers, or benchmark results",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'do_not_invent_metrics,_adoption_numbers,' → safe_assumption.",
+      "name": "do_not_invent_metrics,_adoption_numbers,",
+      "question": null,
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "safe_assumptions",
+      "status": "safe_assumption",
+      "support": "recommended",
+      "text": "Do not invent metrics, adoption numbers, or benchmark results",
+      "value": null
+    }
+  ]
+}

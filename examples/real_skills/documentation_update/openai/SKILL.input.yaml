@@ -1,0 +1,50 @@
+version: skill_input_contract.v1
+skill_id: documentation_update
+skill_name: Documentation Update
+activation:
+  triggers:
+  - A user asks to update README, installation docs, contribution guides, or API docs
+  - A user requests new documentation sections with specific content descriptions
+slots:
+- name: target_document
+  description: ''
+  necessity: recommended
+  answer_source: human_or_agent
+  missing_policy: discover_then_ask
+  support: inferred
+  confidence: 0.85
+  evidence: []
+- name: intended_audience
+  description: ''
+  necessity: recommended
+  answer_source: human
+  missing_policy: ask_user
+  support: explicit
+  confidence: 0.95
+  evidence: []
+- name: content_description
+  description: ''
+  necessity: recommended
+  answer_source: human
+  missing_policy: ask_user
+  support: explicit
+  confidence: 0.95
+  evidence: []
+- name: project_repository_path
+  description: ''
+  necessity: recommended
+  answer_source: human_or_agent
+  missing_policy: discover_then_ask
+  support: inferred
+  confidence: 0.9
+  evidence: []
+- name: user_request_for_promotional_language
+  description: ''
+  necessity: recommended
+  answer_source: human
+  missing_policy: ask_user
+  support: explicit
+  confidence: 0.95
+  evidence: []
+safe_defaults: []
+block_if: []

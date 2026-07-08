@@ -1,0 +1,416 @@
+{
+  "contract": {
+    "activation": {
+      "triggers": [
+        "A user reports a runtime error, crash, unexpected output, or broken behavior",
+        "A test fails unexpectedly because the source code is incorrect"
+      ]
+    },
+    "block_if": [
+      "Do not introduce new dependencies",
+      "Do not change public API surface"
+    ],
+    "safe_defaults": [
+      "Do not delete files without explicit authorization",
+      "Do not call external services"
+    ],
+    "skill_id": "bug_fix",
+    "skill_name": "Bug Fix",
+    "slot_count": 3,
+    "slots": [
+      {
+        "answer_source": "human",
+        "confidence": 0.92,
+        "description": "The reported symptom: error message, traceback, blank page, timeout, or crash",
+        "evidence": [
+          {
+            "quote": "Read and understand the reported symptom.",
+            "rationale": "Agent needs to know what went wrong before it can fix it"
+          }
+        ],
+        "missing_policy": "ask_user",
+        "name": "failure_symptom",
+        "necessity": "required",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 0.88,
+        "description": "What changes are permitted: source-only, tests allowed, public API changes",
+        "evidence": [
+          {
+            "quote": "Do not modify test expectations unless explicitly authorized.",
+            "rationale": "Scope of allowed changes determines valid fix approaches"
+          }
+        ],
+        "missing_policy": "ask_user",
+        "name": "allowed_change_scope",
+        "necessity": "required",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "human_or_agent",
+        "confidence": 0.82,
+        "description": "Which source files or module should be investigated",
+        "evidence": [
+          {
+            "quote": "Reproduce the failure using the smallest relevant command.",
+            "rationale": "Agent needs scope to focus investigation effort"
+          }
+        ],
+        "missing_policy": "discover_then_ask",
+        "name": "target_scope",
+        "necessity": "recommended",
+        "support": "inferred"
+      }
+    ]
+  },
+  "llm_backend": "MockLLM",
+  "stages": [
+    {
+      "parsed": {
+        "activation_triggers": [
+          "A user reports a runtime error, crash, unexpected output, or broken behavior",
+          "A test fails unexpectedly because the source code is incorrect"
+        ],
+        "execution_steps": [
+          "Read and understand the reported symptom.",
+          "Reproduce the failure using the smallest relevant command.",
+          "Isolate the root cause.",
+          "Propose a minimal source fix.",
+          "Do not modify test expectations unless explicitly authorized.",
+          "Report the fix and verification result."
+        ],
+        "forbidden_actions": [
+          "Modify tests unless explicitly authorized",
+          "Change public API surface",
+          "Delete files",
+          "Introduce new dependencies",
+          "Call external services"
+        ],
+        "output_requirements": [
+          "Root cause analysis with evidence from source files",
+          "A minimal source change that fixes the reported behavior",
+          "The relevant test command and its result"
+        ],
+        "safety_constraints": [
+          "Do not modify tests unless explicitly authorized",
+          "Do not change public API surface",
+          "Prefer minimal source changes over broad refactors",
+          "Do not delete files"
+        ],
+        "verification_statements": [
+          "Run the smallest relevant test command",
+          "Report verification result"
+        ]
+      },
+      "raw": "{\"activation_triggers\": [\"A user reports a runtime error, crash, unexpected output, or broken behavior\", \"A test fails unexpectedly because the source code is incorrect\"], \"execution_steps\": [\"Read and understand the reported symptom.\", \"Reproduce the failure using the smallest relevant command.\", \"Isolate the root cause.\", \"Propose a minimal source fix.\", \"Do not modify test expectations unless explicitly authorized.\", \"Report the fix and verification result.\"], \"output_requirements\": [\"Root cause analysis with evidence from source files\", \"A minimal source change that fixes the reported behavior\", \"The relevant test command and its result\"], \"forbidden_actions\": [\"Modify tests unless explicitly authorized\", \"Change public API surface\", \"Delete files\", \"Introduce new dependencies\", \"Call external services\"], \"verification_statements\": [\"Run the smallest relevant test command\", \"Report verification result\"], \"safety_constraints\": [\"Do not modify tests unless explicitly authorized\", \"Do not change public API surface\", \"Prefer minimal source changes over broad refactors\", \"Do not delete files\"]}",
+      "stage": "extract"
+    },
+    {
+      "parsed": [
+        {
+          "description": "The reported symptom: error message, traceback, blank page, timeout, or crash",
+          "evidence": [
+            {
+              "quote": "Read and understand the reported symptom.",
+              "rationale": "Agent needs to know what went wrong before it can fix it"
+            }
+          ],
+          "name": "failure_symptom",
+          "necessity": "required"
+        },
+        {
+          "description": "What changes are permitted: source-only, tests allowed, public API changes",
+          "evidence": [
+            {
+              "quote": "Do not modify test expectations unless explicitly authorized.",
+              "rationale": "Scope of allowed changes determines valid fix approaches"
+            }
+          ],
+          "name": "allowed_change_scope",
+          "necessity": "required"
+        },
+        {
+          "description": "Which source files or module should be investigated",
+          "evidence": [
+            {
+              "quote": "Reproduce the failure using the smallest relevant command.",
+              "rationale": "Agent needs scope to focus investigation effort"
+            }
+          ],
+          "name": "target_scope",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Do not delete files without explicit authorization",
+          "evidence": [
+            {
+              "quote": "Do not delete files.",
+              "rationale": "Explicitly forbidden action from constraints section"
+            }
+          ],
+          "name": "no_file_deletion",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Do not call external services",
+          "evidence": [
+            {
+              "quote": "Do not call external services.",
+              "rationale": "Explicit constraint preventing side effects"
+            }
+          ],
+          "name": "no_external_services",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Do not introduce new dependencies",
+          "evidence": [
+            {
+              "quote": "Do not introduce new dependencies.",
+              "rationale": "Explicit constraint keeping changes minimal"
+            }
+          ],
+          "name": "introduce_dependencies",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Do not change public API surface",
+          "evidence": [
+            {
+              "quote": "Do not change public API surface.",
+              "rationale": "Explicit constraint preserving backward compatibility"
+            }
+          ],
+          "name": "change_public_api",
+          "necessity": "recommended"
+        }
+      ],
+      "raw": "[{\"name\": \"failure_symptom\", \"description\": \"The reported symptom: error message, traceback, blank page, timeout, or crash\", \"necessity\": \"required\", \"evidence\": [{\"quote\": \"Read and understand the reported symptom.\", \"rationale\": \"Agent needs to know what went wrong before it can fix it\"}]}, {\"name\": \"allowed_change_scope\", \"description\": \"What changes are permitted: source-only, tests allowed, public API changes\", \"necessity\": \"required\", \"evidence\": [{\"quote\": \"Do not modify test expectations unless explicitly authorized.\", \"rationale\": \"Scope of allowed changes determines valid fix approaches\"}]}, {\"name\": \"target_scope\", \"description\": \"Which source files or module should be investigated\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Reproduce the failure using the smallest relevant command.\", \"rationale\": \"Agent needs scope to focus investigation effort\"}]}, {\"name\": \"no_file_deletion\", \"description\": \"Do not delete files without explicit authorization\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Do not delete files.\", \"rationale\": \"Explicitly forbidden action from constraints section\"}]}, {\"name\": \"no_external_services\", \"description\": \"Do not call external services\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Do not call external services.\", \"rationale\": \"Explicit constraint preventing side effects\"}]}, {\"name\": \"introduce_dependencies\", \"description\": \"Do not introduce new dependencies\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Do not introduce new dependencies.\", \"rationale\": \"Explicit constraint keeping changes minimal\"}]}, {\"name\": \"change_public_api\", \"description\": \"Do not change public API surface\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Do not change public API surface.\", \"rationale\": \"Explicit constraint preserving backward compatibility\"}]}]",
+      "stage": "infer"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human",
+          "confidence": 0.92,
+          "description": "The reported symptom: error message, traceback, blank page, timeout, or crash",
+          "evidence": [
+            {
+              "quote": "Read and understand the reported symptom.",
+              "rationale": "Agent needs to know what went wrong before it can fix it"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "failure_symptom",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.88,
+          "description": "What changes are permitted: source-only, tests allowed, public API changes",
+          "evidence": [
+            {
+              "quote": "Do not modify test expectations unless explicitly authorized.",
+              "rationale": "Scope of allowed changes determines valid fix approaches"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "allowed_change_scope",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.82,
+          "description": "Which source files or module should be investigated",
+          "evidence": [
+            {
+              "quote": "Reproduce the failure using the smallest relevant command.",
+              "rationale": "Agent needs scope to focus investigation effort"
+            }
+          ],
+          "missing_policy": "discover_then_ask",
+          "name": "target_scope",
+          "necessity": "recommended",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.95,
+          "description": "Do not delete files without explicit authorization",
+          "evidence": [
+            {
+              "quote": "Do not delete files.",
+              "rationale": "Explicitly forbidden action from constraints section"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "no_file_deletion",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.95,
+          "description": "Do not call external services",
+          "evidence": [
+            {
+              "quote": "Do not call external services.",
+              "rationale": "Explicit constraint preventing side effects"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "no_external_services",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "blocked",
+          "confidence": 0.95,
+          "description": "Do not introduce new dependencies",
+          "evidence": [
+            {
+              "quote": "Do not introduce new dependencies.",
+              "rationale": "Explicit constraint keeping changes minimal"
+            }
+          ],
+          "missing_policy": "block",
+          "name": "introduce_dependencies",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "blocked",
+          "confidence": 0.93,
+          "description": "Do not change public API surface",
+          "evidence": [
+            {
+              "quote": "Do not change public API surface.",
+              "rationale": "Explicit constraint preserving backward compatibility"
+            }
+          ],
+          "missing_policy": "block",
+          "name": "change_public_api",
+          "necessity": "recommended",
+          "support": "explicit"
+        }
+      ],
+      "raw": "[{\"name\": \"failure_symptom\", \"description\": \"The reported symptom: error message, traceback, blank page, timeout, or crash\", \"necessity\": \"required\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.92, \"evidence\": [{\"quote\": \"Read and understand the reported symptom.\", \"rationale\": \"Agent needs to know what went wrong before it can fix it\"}]}, {\"name\": \"allowed_change_scope\", \"description\": \"What changes are permitted: source-only, tests allowed, public API changes\", \"necessity\": \"required\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.88, \"evidence\": [{\"quote\": \"Do not modify test expectations unless explicitly authorized.\", \"rationale\": \"Scope of allowed changes determines valid fix approaches\"}]}, {\"name\": \"target_scope\", \"description\": \"Which source files or module should be investigated\", \"necessity\": \"recommended\", \"answer_source\": \"human_or_agent\", \"missing_policy\": \"discover_then_ask\", \"support\": \"inferred\", \"confidence\": 0.82, \"evidence\": [{\"quote\": \"Reproduce the failure using the smallest relevant command.\", \"rationale\": \"Agent needs scope to focus investigation effort\"}]}, {\"name\": \"no_file_deletion\", \"description\": \"Do not delete files without explicit authorization\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.95, \"evidence\": [{\"quote\": \"Do not delete files.\", \"rationale\": \"Explicitly forbidden action from constraints section\"}]}, {\"name\": \"no_external_services\", \"description\": \"Do not call external services\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.95, \"evidence\": [{\"quote\": \"Do not call external services.\", \"rationale\": \"Explicit constraint preventing side effects\"}]}, {\"name\": \"introduce_dependencies\", \"description\": \"Do not introduce new dependencies\", \"necessity\": \"recommended\", \"answer_source\": \"blocked\", \"missing_policy\": \"block\", \"support\": \"explicit\", \"confidence\": 0.95, \"evidence\": [{\"quote\": \"Do not introduce new dependencies.\", \"rationale\": \"Explicit constraint keeping changes minimal\"}]}, {\"name\": \"change_public_api\", \"description\": \"Do not change public API surface\", \"necessity\": \"recommended\", \"answer_source\": \"blocked\", \"missing_policy\": \"block\", \"support\": \"explicit\", \"confidence\": 0.93, \"evidence\": [{\"quote\": \"Do not change public API surface.\", \"rationale\": \"Explicit constraint preserving backward compatibility\"}]}]",
+      "stage": "classify"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human",
+          "confidence": 0.92,
+          "description": "The reported symptom: error message, traceback, blank page, timeout, or crash",
+          "evidence": [
+            {
+              "quote": "Read and understand the reported symptom.",
+              "rationale": "Agent needs to know what went wrong before it can fix it"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "failure_symptom",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.88,
+          "description": "What changes are permitted: source-only, tests allowed, public API changes",
+          "evidence": [
+            {
+              "quote": "Do not modify test expectations unless explicitly authorized.",
+              "rationale": "Scope of allowed changes determines valid fix approaches"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "allowed_change_scope",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.82,
+          "description": "Which source files or module should be investigated",
+          "evidence": [
+            {
+              "quote": "Reproduce the failure using the smallest relevant command.",
+              "rationale": "Agent needs scope to focus investigation effort"
+            }
+          ],
+          "missing_policy": "discover_then_ask",
+          "name": "target_scope",
+          "necessity": "recommended",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.95,
+          "description": "Do not delete files without explicit authorization",
+          "evidence": [
+            {
+              "quote": "Do not delete files.",
+              "rationale": "Explicitly forbidden action from constraints section"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "no_file_deletion",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.95,
+          "description": "Do not call external services",
+          "evidence": [
+            {
+              "quote": "Do not call external services.",
+              "rationale": "Explicit constraint preventing side effects"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "no_external_services",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "blocked",
+          "confidence": 0.95,
+          "description": "Do not introduce new dependencies",
+          "evidence": [
+            {
+              "quote": "Do not introduce new dependencies.",
+              "rationale": "Explicit constraint keeping changes minimal"
+            }
+          ],
+          "missing_policy": "block",
+          "name": "introduce_dependencies",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "blocked",
+          "confidence": 0.93,
+          "description": "Do not change public API surface",
+          "evidence": [
+            {
+              "quote": "Do not change public API surface.",
+              "rationale": "Explicit constraint preserving backward compatibility"
+            }
+          ],
+          "missing_policy": "block",
+          "name": "change_public_api",
+          "necessity": "recommended",
+          "support": "explicit"
+        }
+      ],
+      "raw": "[{\"name\": \"failure_symptom\", \"description\": \"The reported symptom: error message, traceback, blank page, timeout, or crash\", \"necessity\": \"required\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.92, \"evidence\": [{\"quote\": \"Read and understand the reported symptom.\", \"rationale\": \"Agent needs to know what went wrong before it can fix it\"}]}, {\"name\": \"allowed_change_scope\", \"description\": \"What changes are permitted: source-only, tests allowed, public API changes\", \"necessity\": \"required\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.88, \"evidence\": [{\"quote\": \"Do not modify test expectations unless explicitly authorized.\", \"rationale\": \"Scope of allowed changes determines valid fix approaches\"}]}, {\"name\": \"target_scope\", \"description\": \"Which source files or module should be investigated\", \"necessity\": \"recommended\", \"answer_source\": \"human_or_agent\", \"missing_policy\": \"discover_then_ask\", \"support\": \"inferred\", \"confidence\": 0.82, \"evidence\": [{\"quote\": \"Reproduce the failure using the smallest relevant command.\", \"rationale\": \"Agent needs scope to focus investigation effort\"}]}, {\"name\": \"no_file_deletion\", \"description\": \"Do not delete files without explicit authorization\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.95, \"evidence\": [{\"quote\": \"Do not delete files.\", \"rationale\": \"Explicitly forbidden action from constraints section\"}]}, {\"name\": \"no_external_services\", \"description\": \"Do not call external services\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.95, \"evidence\": [{\"quote\": \"Do not call external services.\", \"rationale\": \"Explicit constraint preventing side effects\"}]}, {\"name\": \"introduce_dependencies\", \"description\": \"Do not introduce new dependencies\", \"necessity\": \"recommended\", \"answer_source\": \"blocked\", \"missing_policy\": \"block\", \"support\": \"explicit\", \"confidence\": 0.95, \"evidence\": [{\"quote\": \"Do not introduce new dependencies.\", \"rationale\": \"Explicit constraint keeping changes minimal\"}]}, {\"name\": \"change_public_api\", \"description\": \"Do not change public API surface\", \"necessity\": \"recommended\", \"answer_source\": \"blocked\", \"missing_policy\": \"block\", \"support\": \"explicit\", \"confidence\": 0.93, \"evidence\": [{\"quote\": \"Do not change public API surface.\", \"rationale\": \"Explicit constraint preserving backward compatibility\"}]}]",
+      "stage": "critique"
+    }
+  ]
+}

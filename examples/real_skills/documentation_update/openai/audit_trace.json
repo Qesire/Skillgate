@@ -1,0 +1,248 @@
+{
+  "contract": {
+    "activation": {
+      "triggers": [
+        "A user asks to update README, installation docs, contribution guides, or API docs",
+        "A user requests new documentation sections with specific content descriptions"
+      ]
+    },
+    "block_if": [],
+    "safe_defaults": [],
+    "skill_id": "documentation_update",
+    "skill_name": "Documentation Update",
+    "slot_count": 5,
+    "slots": [
+      {
+        "answer_source": "human_or_agent",
+        "confidence": 0.85,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_then_ask",
+        "name": "target_document",
+        "necessity": "recommended",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 0.95,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "intended_audience",
+        "necessity": "recommended",
+        "support": "explicit"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 0.95,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "content_description",
+        "necessity": "recommended",
+        "support": "explicit"
+      },
+      {
+        "answer_source": "human_or_agent",
+        "confidence": 0.9,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_then_ask",
+        "name": "project_repository_path",
+        "necessity": "recommended",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 0.95,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "user_request_for_promotional_language",
+        "necessity": "recommended",
+        "support": "explicit"
+      }
+    ]
+  },
+  "llm_backend": "OpenAILLM",
+  "model": "deepseek-chat",
+  "stages": [
+    {
+      "parsed": {
+        "activation_triggers": [
+          "A user asks to update README, installation docs, contribution guides, or API docs",
+          "A user requests new documentation sections with specific content descriptions"
+        ],
+        "execution_steps": [
+          "Identify the target document and the intended audience.",
+          "Read the existing document and related project files.",
+          "Discover project commands, package manager, and conventions from local config.",
+          "Write or update the documentation section.",
+          "Ground every factual claim in repo evidence."
+        ],
+        "forbidden_actions": [
+          "Do not invent metrics, adoption numbers, or benchmark results.",
+          "Do not fabricate features or capabilities the project does not have.",
+          "Do not write promotional language without explicit user request."
+        ],
+        "output_requirements": [
+          "Updated documentation file",
+          "A list of claims with evidence sources"
+        ],
+        "safety_constraints": [
+          "Only use facts grounded in repo files (README, pyproject, config, source)."
+        ],
+        "verification_statements": []
+      },
+      "raw": "```json\n{\n  \"activation_triggers\": [\n    \"A user asks to update README, installation docs, contribution guides, or API docs\",\n    \"A user requests new documentation sections with specific content descriptions\"\n  ],\n  \"execution_steps\": [\n    \"Identify the target document and the intended audience.\",\n    \"Read the existing document and related project files.\",\n    \"Discover project commands, package manager, and conventions from local config.\",\n    \"Write or update the documentation section.\",\n    \"Ground every factual claim in repo evidence.\"\n  ],\n  \"output_requirements\": [\n    \"Updated documentation file\",\n    \"A list of claims with evidence sources\"\n  ],\n  \"forbidden_actions\": [\n    \"Do not invent metrics, adoption numbers, or benchmark results.\",\n    \"Do not fabricate features or capabilities the project does not have.\",\n    \"Do not write promotional language without explicit user request.\"\n  ],\n  \"verification_statements\": [],\n  \"safety_constraints\": [\n    \"Only use facts grounded in repo files (README, pyproject, config, source).\"\n  ]\n}\n```",
+      "stage": "extract"
+    },
+    {
+      "parsed": [
+        {
+          "description": "The specific document file path or name that needs to be updated or created (e.g., README.md, CONTRIBUTING.md, installation guide).",
+          "evidence": [
+            {
+              "quote": "Identify the target document and the intended audience.",
+              "rationale": "The first execution step requires identifying the target document, so the agent must know which document to work on before starting."
+            }
+          ],
+          "name": "target_document",
+          "necessity": "required"
+        },
+        {
+          "description": "The target audience for the documentation (e.g., end users, developers, contributors).",
+          "evidence": [
+            {
+              "quote": "Identify the target document and the intended audience.",
+              "rationale": "The execution step explicitly requires identifying the intended audience, which is necessary to tailor the documentation appropriately."
+            }
+          ],
+          "name": "intended_audience",
+          "necessity": "required"
+        },
+        {
+          "description": "A description of what content should be included in the new or updated documentation section, if the user is requesting new sections.",
+          "evidence": [
+            {
+              "quote": "A user requests new documentation sections with specific content descriptions",
+              "rationale": "One activation trigger requires 'specific content descriptions' from the user, meaning the agent needs this input to know what to write."
+            }
+          ],
+          "name": "content_description",
+          "necessity": "required"
+        },
+        {
+          "description": "The local file path or repository location of the project containing the documentation and related files.",
+          "evidence": [
+            {
+              "quote": "Read the existing document and related project files.",
+              "rationale": "The agent must read existing files, so it needs to know where the project is located to access those files."
+            },
+            {
+              "quote": "Discover project commands, package manager, and conventions from local config.",
+              "rationale": "The agent needs to access local configuration files, which requires knowing the project's location."
+            }
+          ],
+          "name": "project_repository_path",
+          "necessity": "required"
+        },
+        {
+          "description": "An explicit user request to include promotional or marketing language in the documentation.",
+          "evidence": [
+            {
+              "quote": "Do not write promotional language without explicit user request.",
+              "rationale": "The forbidden action prohibits promotional language unless the user explicitly requests it, so the agent needs this input to know if it is allowed."
+            }
+          ],
+          "name": "user_request_for_promotional_language",
+          "necessity": "required"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"target_document\",\n    \"description\": \"The specific document file path or name that needs to be updated or created (e.g., README.md, CONTRIBUTING.md, installation guide).\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Identify the target document and the intended audience.\",\n        \"rationale\": \"The first execution step requires identifying the target document, so the agent must know which document to work on before starting.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"intended_audience\",\n    \"description\": \"The target audience for the documentation (e.g., end users, developers, contributors).\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Identify the target document and the intended audience.\",\n        \"rationale\": \"The execution step explicitly requires identifying the intended audience, which is necessary to tailor the documentation appropriately.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"content_description\",\n    \"description\": \"A description of what content should be included in the new or updated documentation section, if the user is requesting new sections.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"A user requests new documentation sections with specific content descriptions\",\n        \"rationale\": \"One activation trigger requires 'specific content descriptions' from the user, meaning the agent needs this input to know what to write.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"project_repository_path\",\n    \"description\": \"The local file path or repository location of the project containing the documentation and related files.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Read the existing document and related project files.\",\n        \"rationale\": \"The agent must read existing files, so it needs to know where the project is located to access those files.\"\n      },\n      {\n        \"quote\": \"Discover project commands, package manager, and conventions from local config.\",\n        \"rationale\": \"The agent needs to access local configuration files, which requires knowing the project's location.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"user_request_for_promotional_language\",\n    \"description\": \"An explicit user request to include promotional or marketing language in the documentation.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Do not write promotional language without explicit user request.\",\n        \"rationale\": \"The forbidden action prohibits promotional language unless the user explicitly requests it, so the agent needs this input to know if it is allowed.\"\n      }\n    ]\n  }\n]\n```",
+      "stage": "infer"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.85,
+          "missing_policy": "discover_then_ask",
+          "name": "target_document",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.95,
+          "missing_policy": "ask_user",
+          "name": "intended_audience",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.95,
+          "missing_policy": "ask_user",
+          "name": "content_description",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.9,
+          "missing_policy": "discover_then_ask",
+          "name": "project_repository_path",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.95,
+          "missing_policy": "ask_user",
+          "name": "user_request_for_promotional_language",
+          "support": "explicit"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"target_document\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.85\n  },\n  {\n    \"name\": \"intended_audience\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  },\n  {\n    \"name\": \"content_description\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  },\n  {\n    \"name\": \"project_repository_path\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.9\n  },\n  {\n    \"name\": \"user_request_for_promotional_language\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  }\n]\n```",
+      "stage": "classify"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.85,
+          "missing_policy": "discover_then_ask",
+          "name": "target_document",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.95,
+          "missing_policy": "ask_user",
+          "name": "intended_audience",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.95,
+          "missing_policy": "ask_user",
+          "name": "content_description",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.9,
+          "missing_policy": "discover_then_ask",
+          "name": "project_repository_path",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.95,
+          "missing_policy": "ask_user",
+          "name": "user_request_for_promotional_language",
+          "support": "explicit"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"target_document\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.85\n  },\n  {\n    \"name\": \"intended_audience\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  },\n  {\n    \"name\": \"content_description\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  },\n  {\n    \"name\": \"project_repository_path\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.9\n  },\n  {\n    \"name\": \"user_request_for_promotional_language\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  }\n]\n```",
+      "stage": "critique"
+    }
+  ]
+}

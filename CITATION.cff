@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use SkillGate or its benchmark materials, cite this software artifact."
+title: "SkillGate: Contract-Aware Input Compilation for Coding Agents"
+type: software
+authors:
+  - name: "SkillGate Contributors"
+version: 0.2.0
+date-released: 2026-06-18
+license: MIT

@@ -1,0 +1,45 @@
+{
+  "decision_kind": "assume_and_continue",
+  "decision_reason": "Only low-risk gaps remain; conservative assumptions are recorded.",
+  "schema_version": "skillgate.input_slot_state.v1",
+  "skill_id": "refactor",
+  "slot_count": 2,
+  "slots": [
+    {
+      "ambiguity": "low",
+      "answer_source": "policy_default",
+      "assumption": "Do not delete files without explicit authorization",
+      "category": "safe_assumption",
+      "description": "Do not delete files without explicit authorization",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'do_not_delete_files_without_explicit_aut' → safe_assumption.",
+      "name": "do_not_delete_files_without_explicit_aut",
+      "question": null,
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "safe_assumptions",
+      "status": "safe_assumption",
+      "support": "recommended",
+      "text": "Do not delete files without explicit authorization",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "policy_default",
+      "assumption": "Keep changes localized; do not perform broad refactors unless requested",
+      "category": "safe_assumption",
+      "description": "Keep changes localized; do not perform broad refactors unless requested",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'keep_changes_localized;_do_not_perform_b' → safe_assumption.",
+      "name": "keep_changes_localized;_do_not_perform_b",
+      "question": null,
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "safe_assumptions",
+      "status": "safe_assumption",
+      "support": "recommended",
+      "text": "Keep changes localized; do not perform broad refactors unless requested",
+      "value": null
+    }
+  ]
+}

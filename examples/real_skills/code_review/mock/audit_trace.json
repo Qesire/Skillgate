@@ -1,0 +1,332 @@
+{
+  "contract": {
+    "activation": {
+      "triggers": [
+        "A user asks to review code changes, a PR, or a diff",
+        "A user requests a security audit or correctness check on specific files"
+      ]
+    },
+    "block_if": [
+      "Do not print full secret values"
+    ],
+    "safe_defaults": [
+      "Review is read-only; do not modify any files"
+    ],
+    "skill_id": "code_review",
+    "skill_name": "Code Review",
+    "slot_count": 3,
+    "slots": [
+      {
+        "answer_source": "human_or_agent",
+        "confidence": 0.85,
+        "description": "Which files, diff, or PR should be reviewed",
+        "evidence": [
+          {
+            "quote": "Identify the review target (files, diff, PR).",
+            "rationale": "Agent needs to know what to review"
+          }
+        ],
+        "missing_policy": "discover_then_ask",
+        "name": "review_target",
+        "necessity": "required",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 0.9,
+        "description": "Review focus: correctness, security, performance, maintainability, or API risk",
+        "evidence": [
+          {
+            "quote": "Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.",
+            "rationale": "Focus determines what findings to surface"
+          }
+        ],
+        "missing_policy": "ask_user",
+        "name": "review_focus",
+        "necessity": "required",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 0.78,
+        "description": "Minimum severity of findings that should be reported",
+        "evidence": [
+          {
+            "quote": "Report only findings that meet the severity bar.",
+            "rationale": "Severity threshold controls review scope and noise"
+          }
+        ],
+        "missing_policy": "ask_user",
+        "name": "severity_bar",
+        "necessity": "recommended",
+        "support": "inferred"
+      }
+    ]
+  },
+  "llm_backend": "MockLLM",
+  "stages": [
+    {
+      "parsed": {
+        "activation_triggers": [
+          "A user asks to review code changes, a PR, or a diff",
+          "A user requests a security audit or correctness check on specific files"
+        ],
+        "execution_steps": [
+          "Identify the review target (files, diff, PR).",
+          "Read the changed or specified code.",
+          "Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.",
+          "Report only findings that meet the severity bar.",
+          "Cite specific file paths and line ranges as evidence."
+        ],
+        "forbidden_actions": [
+          "Modify any files",
+          "Speculate without evidence",
+          "Print full secret values",
+          "Push, deploy, or call external services"
+        ],
+        "output_requirements": [
+          "A structured review report",
+          "Each finding: severity, file, line range, description, evidence",
+          "Optional: suggested fixes (reported separately, not applied)"
+        ],
+        "safety_constraints": [
+          "Review is read-only. Do not modify any files.",
+          "Only report evidence-backed findings. Do not speculate.",
+          "Redact secret-like values in evidence.",
+          "Do not print full secret values.",
+          "Do not push, deploy, or call external services."
+        ],
+        "verification_statements": [
+          "Review is read-only",
+          "Only report evidence-backed findings",
+          "Redact secret-like values in evidence"
+        ]
+      },
+      "raw": "{\"activation_triggers\": [\"A user asks to review code changes, a PR, or a diff\", \"A user requests a security audit or correctness check on specific files\"], \"execution_steps\": [\"Identify the review target (files, diff, PR).\", \"Read the changed or specified code.\", \"Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.\", \"Report only findings that meet the severity bar.\", \"Cite specific file paths and line ranges as evidence.\"], \"output_requirements\": [\"A structured review report\", \"Each finding: severity, file, line range, description, evidence\", \"Optional: suggested fixes (reported separately, not applied)\"], \"forbidden_actions\": [\"Modify any files\", \"Speculate without evidence\", \"Print full secret values\", \"Push, deploy, or call external services\"], \"verification_statements\": [\"Review is read-only\", \"Only report evidence-backed findings\", \"Redact secret-like values in evidence\"], \"safety_constraints\": [\"Review is read-only. Do not modify any files.\", \"Only report evidence-backed findings. Do not speculate.\", \"Redact secret-like values in evidence.\", \"Do not print full secret values.\", \"Do not push, deploy, or call external services.\"]}",
+      "stage": "extract"
+    },
+    {
+      "parsed": [
+        {
+          "description": "Which files, diff, or PR should be reviewed",
+          "evidence": [
+            {
+              "quote": "Identify the review target (files, diff, PR).",
+              "rationale": "Agent needs to know what to review"
+            }
+          ],
+          "name": "review_target",
+          "necessity": "required"
+        },
+        {
+          "description": "Review focus: correctness, security, performance, maintainability, or API risk",
+          "evidence": [
+            {
+              "quote": "Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.",
+              "rationale": "Focus determines what findings to surface"
+            }
+          ],
+          "name": "review_focus",
+          "necessity": "required"
+        },
+        {
+          "description": "Minimum severity of findings that should be reported",
+          "evidence": [
+            {
+              "quote": "Report only findings that meet the severity bar.",
+              "rationale": "Severity threshold controls review scope and noise"
+            }
+          ],
+          "name": "severity_bar",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Review is read-only; do not modify any files",
+          "evidence": [
+            {
+              "quote": "Review is read-only. Do not modify any files.",
+              "rationale": "Explicit constraint from the first constraint bullet"
+            }
+          ],
+          "name": "read_only",
+          "necessity": "recommended"
+        },
+        {
+          "description": "Do not print full secret values",
+          "evidence": [
+            {
+              "quote": "Do not print full secret values.",
+              "rationale": "Explicit safety constraint preventing credential exposure"
+            }
+          ],
+          "name": "no_secret_printing",
+          "necessity": "recommended"
+        }
+      ],
+      "raw": "[{\"name\": \"review_target\", \"description\": \"Which files, diff, or PR should be reviewed\", \"necessity\": \"required\", \"evidence\": [{\"quote\": \"Identify the review target (files, diff, PR).\", \"rationale\": \"Agent needs to know what to review\"}]}, {\"name\": \"review_focus\", \"description\": \"Review focus: correctness, security, performance, maintainability, or API risk\", \"necessity\": \"required\", \"evidence\": [{\"quote\": \"Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.\", \"rationale\": \"Focus determines what findings to surface\"}]}, {\"name\": \"severity_bar\", \"description\": \"Minimum severity of findings that should be reported\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Report only findings that meet the severity bar.\", \"rationale\": \"Severity threshold controls review scope and noise\"}]}, {\"name\": \"read_only\", \"description\": \"Review is read-only; do not modify any files\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Review is read-only. Do not modify any files.\", \"rationale\": \"Explicit constraint from the first constraint bullet\"}]}, {\"name\": \"no_secret_printing\", \"description\": \"Do not print full secret values\", \"necessity\": \"recommended\", \"evidence\": [{\"quote\": \"Do not print full secret values.\", \"rationale\": \"Explicit safety constraint preventing credential exposure\"}]}]",
+      "stage": "infer"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.85,
+          "description": "Which files, diff, or PR should be reviewed",
+          "evidence": [
+            {
+              "quote": "Identify the review target (files, diff, PR).",
+              "rationale": "Agent needs to know what to review"
+            }
+          ],
+          "missing_policy": "discover_then_ask",
+          "name": "review_target",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.9,
+          "description": "Review focus: correctness, security, performance, maintainability, or API risk",
+          "evidence": [
+            {
+              "quote": "Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.",
+              "rationale": "Focus determines what findings to surface"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "review_focus",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.78,
+          "description": "Minimum severity of findings that should be reported",
+          "evidence": [
+            {
+              "quote": "Report only findings that meet the severity bar.",
+              "rationale": "Severity threshold controls review scope and noise"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "severity_bar",
+          "necessity": "recommended",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.95,
+          "description": "Review is read-only; do not modify any files",
+          "evidence": [
+            {
+              "quote": "Review is read-only. Do not modify any files.",
+              "rationale": "Explicit constraint from the first constraint bullet"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "read_only",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "blocked",
+          "confidence": 0.93,
+          "description": "Do not print full secret values",
+          "evidence": [
+            {
+              "quote": "Do not print full secret values.",
+              "rationale": "Explicit safety constraint preventing credential exposure"
+            }
+          ],
+          "missing_policy": "block",
+          "name": "no_secret_printing",
+          "necessity": "recommended",
+          "support": "explicit"
+        }
+      ],
+      "raw": "[{\"name\": \"review_target\", \"description\": \"Which files, diff, or PR should be reviewed\", \"necessity\": \"required\", \"answer_source\": \"human_or_agent\", \"missing_policy\": \"discover_then_ask\", \"support\": \"inferred\", \"confidence\": 0.85, \"evidence\": [{\"quote\": \"Identify the review target (files, diff, PR).\", \"rationale\": \"Agent needs to know what to review\"}]}, {\"name\": \"review_focus\", \"description\": \"Review focus: correctness, security, performance, maintainability, or API risk\", \"necessity\": \"required\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.9, \"evidence\": [{\"quote\": \"Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.\", \"rationale\": \"Focus determines what findings to surface\"}]}, {\"name\": \"severity_bar\", \"description\": \"Minimum severity of findings that should be reported\", \"necessity\": \"recommended\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.78, \"evidence\": [{\"quote\": \"Report only findings that meet the severity bar.\", \"rationale\": \"Severity threshold controls review scope and noise\"}]}, {\"name\": \"read_only\", \"description\": \"Review is read-only; do not modify any files\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.95, \"evidence\": [{\"quote\": \"Review is read-only. Do not modify any files.\", \"rationale\": \"Explicit constraint from the first constraint bullet\"}]}, {\"name\": \"no_secret_printing\", \"description\": \"Do not print full secret values\", \"necessity\": \"recommended\", \"answer_source\": \"blocked\", \"missing_policy\": \"block\", \"support\": \"explicit\", \"confidence\": 0.93, \"evidence\": [{\"quote\": \"Do not print full secret values.\", \"rationale\": \"Explicit safety constraint preventing credential exposure\"}]}]",
+      "stage": "classify"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.85,
+          "description": "Which files, diff, or PR should be reviewed",
+          "evidence": [
+            {
+              "quote": "Identify the review target (files, diff, PR).",
+              "rationale": "Agent needs to know what to review"
+            }
+          ],
+          "missing_policy": "discover_then_ask",
+          "name": "review_target",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.9,
+          "description": "Review focus: correctness, security, performance, maintainability, or API risk",
+          "evidence": [
+            {
+              "quote": "Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.",
+              "rationale": "Focus determines what findings to surface"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "review_focus",
+          "necessity": "required",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.78,
+          "description": "Minimum severity of findings that should be reported",
+          "evidence": [
+            {
+              "quote": "Report only findings that meet the severity bar.",
+              "rationale": "Severity threshold controls review scope and noise"
+            }
+          ],
+          "missing_policy": "ask_user",
+          "name": "severity_bar",
+          "necessity": "recommended",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "policy_default",
+          "confidence": 0.95,
+          "description": "Review is read-only; do not modify any files",
+          "evidence": [
+            {
+              "quote": "Review is read-only. Do not modify any files.",
+              "rationale": "Explicit constraint from the first constraint bullet"
+            }
+          ],
+          "missing_policy": "assume_default",
+          "name": "read_only",
+          "necessity": "recommended",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "blocked",
+          "confidence": 0.93,
+          "description": "Do not print full secret values",
+          "evidence": [
+            {
+              "quote": "Do not print full secret values.",
+              "rationale": "Explicit safety constraint preventing credential exposure"
+            }
+          ],
+          "missing_policy": "block",
+          "name": "no_secret_printing",
+          "necessity": "recommended",
+          "support": "explicit"
+        }
+      ],
+      "raw": "[{\"name\": \"review_target\", \"description\": \"Which files, diff, or PR should be reviewed\", \"necessity\": \"required\", \"answer_source\": \"human_or_agent\", \"missing_policy\": \"discover_then_ask\", \"support\": \"inferred\", \"confidence\": 0.85, \"evidence\": [{\"quote\": \"Identify the review target (files, diff, PR).\", \"rationale\": \"Agent needs to know what to review\"}]}, {\"name\": \"review_focus\", \"description\": \"Review focus: correctness, security, performance, maintainability, or API risk\", \"necessity\": \"required\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.9, \"evidence\": [{\"quote\": \"Analyze for the requested focus: correctness, security, performance, maintainability, or API risk.\", \"rationale\": \"Focus determines what findings to surface\"}]}, {\"name\": \"severity_bar\", \"description\": \"Minimum severity of findings that should be reported\", \"necessity\": \"recommended\", \"answer_source\": \"human\", \"missing_policy\": \"ask_user\", \"support\": \"inferred\", \"confidence\": 0.78, \"evidence\": [{\"quote\": \"Report only findings that meet the severity bar.\", \"rationale\": \"Severity threshold controls review scope and noise\"}]}, {\"name\": \"read_only\", \"description\": \"Review is read-only; do not modify any files\", \"necessity\": \"recommended\", \"answer_source\": \"policy_default\", \"missing_policy\": \"assume_default\", \"support\": \"explicit\", \"confidence\": 0.95, \"evidence\": [{\"quote\": \"Review is read-only. Do not modify any files.\", \"rationale\": \"Explicit constraint from the first constraint bullet\"}]}, {\"name\": \"no_secret_printing\", \"description\": \"Do not print full secret values\", \"necessity\": \"recommended\", \"answer_source\": \"blocked\", \"missing_policy\": \"block\", \"support\": \"explicit\", \"confidence\": 0.93, \"evidence\": [{\"quote\": \"Do not print full secret values.\", \"rationale\": \"Explicit safety constraint preventing credential exposure\"}]}]",
+      "stage": "critique"
+    }
+  ]
+}

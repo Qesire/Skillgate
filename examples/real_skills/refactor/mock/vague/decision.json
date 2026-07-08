@@ -1,0 +1,10 @@
+{
+  "confidence": 0.85,
+  "kind": "ask_user",
+  "questions": [
+    "What improvement: naming, structure, deduplication, performance",
+    "Must behavior be strictly preserved"
+  ],
+  "reason": "Some required inputs need to be provided by the user.",
+  "skill_id": "refactor"
+}

@@ -1,0 +1,16 @@
+include LICENSE
+include README.md
+include CHANGELOG.md
+recursive-include schemas *.json
+recursive-include skillgate/skills *.md
+recursive-include skills/skillgate-preactivation *.md
+recursive-include examples/docs_only *.md
+recursive-include examples/python_pytest_minimal *.md *.toml *.py
+recursive-include examples/real_skills *.md *.yaml *.json
+recursive-include tests *.py
+global-exclude __pycache__/*
+global-exclude *.py[cod]
+prune .skillgate
+prune .github
+prune examples/*/.skillgate
+prune examples/real_skills/*/openai

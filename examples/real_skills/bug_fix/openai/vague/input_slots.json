@@ -1,0 +1,45 @@
+{
+  "decision_kind": "ask_user",
+  "decision_reason": "Authorization is required before proceeding.",
+  "schema_version": "skillgate.input_slot_state.v1",
+  "skill_id": "bug_fix",
+  "slot_count": 2,
+  "slots": [
+    {
+      "ambiguity": "low",
+      "answer_source": "policy_default",
+      "assumption": "allowed_change_scope",
+      "category": "safe_assumption",
+      "description": "allowed_change_scope",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'allowed_change_scope' → safe_assumption.",
+      "name": "allowed_change_scope",
+      "question": null,
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "safe_assumptions",
+      "status": "safe_assumption",
+      "support": "recommended",
+      "text": "allowed_change_scope",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "authorization",
+      "assumption": null,
+      "category": "requires_authorization",
+      "description": "",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'authorization_to_modify_tests' → requires_authorization.",
+      "name": "authorization_to_modify_tests",
+      "question": "",
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "requires_authorization",
+      "status": "requires_authorization",
+      "support": "explicit",
+      "text": "",
+      "value": null
+    }
+  ]
+}

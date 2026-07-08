@@ -1,0 +1,49 @@
+name: Bug report
+description: Report reproducible incorrect behavior in the SkillGate core CLI.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include secrets, private repository content, or unpublished credentials.
+  - type: input
+    id: version
+    attributes:
+      label: SkillGate version
+      placeholder: 0.3.0 or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - audit-skill
+        - compile
+        - clarification
+        - inspect
+        - explain
+        - schemas
+        - packaging or CI
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include commands, fixture structure, and sanitized inputs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and evidence
+      description: Include exit codes and redacted logs where possible.
+    validations:
+      required: true

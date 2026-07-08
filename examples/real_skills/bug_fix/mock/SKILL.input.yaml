@@ -1,0 +1,46 @@
+version: skill_input_contract.v1
+skill_id: bug_fix
+skill_name: Bug Fix
+activation:
+  triggers:
+  - A user reports a runtime error, crash, unexpected output, or broken behavior
+  - A test fails unexpectedly because the source code is incorrect
+slots:
+- name: failure_symptom
+  description: 'The reported symptom: error message, traceback, blank page, timeout,
+    or crash'
+  necessity: required
+  answer_source: human
+  missing_policy: ask_user
+  support: inferred
+  confidence: 0.92
+  evidence:
+  - quote: Read and understand the reported symptom.
+    rationale: Agent needs to know what went wrong before it can fix it
+- name: allowed_change_scope
+  description: 'What changes are permitted: source-only, tests allowed, public API
+    changes'
+  necessity: required
+  answer_source: human
+  missing_policy: ask_user
+  support: inferred
+  confidence: 0.88
+  evidence:
+  - quote: Do not modify test expectations unless explicitly authorized.
+    rationale: Scope of allowed changes determines valid fix approaches
+- name: target_scope
+  description: Which source files or module should be investigated
+  necessity: recommended
+  answer_source: human_or_agent
+  missing_policy: discover_then_ask
+  support: inferred
+  confidence: 0.82
+  evidence:
+  - quote: Reproduce the failure using the smallest relevant command.
+    rationale: Agent needs scope to focus investigation effort
+safe_defaults:
+- Do not delete files without explicit authorization
+- Do not call external services
+block_if:
+- Do not introduce new dependencies
+- Do not change public API surface

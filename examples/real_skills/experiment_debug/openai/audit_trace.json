@@ -1,0 +1,319 @@
+{
+  "contract": {
+    "activation": {
+      "triggers": [
+        "An experiment run produces unexpected results, crashes, or non-deterministic output",
+        "A user asks to debug a research pipeline, benchmark run, or evaluation script"
+      ]
+    },
+    "block_if": [],
+    "safe_defaults": [],
+    "skill_id": "experiment_debug",
+    "skill_name": "Experiment Debug",
+    "slot_count": 7,
+    "slots": [
+      {
+        "answer_source": "human_or_agent",
+        "confidence": 0.95,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_then_ask",
+        "name": "experiment_log_or_error_output",
+        "necessity": "recommended",
+        "support": "explicit"
+      },
+      {
+        "answer_source": "human",
+        "confidence": 0.95,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "original_experiment_intent",
+        "necessity": "recommended",
+        "support": "explicit"
+      },
+      {
+        "answer_source": "human_or_agent",
+        "confidence": 0.85,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_then_ask",
+        "name": "smallest_relevant_input",
+        "necessity": "recommended",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "agent",
+        "confidence": 0.8,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_only",
+        "name": "failing_component_context",
+        "necessity": "recommended",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "authorization",
+        "confidence": 1.0,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "ask_user",
+        "name": "authorization_for_modifications",
+        "necessity": "recommended",
+        "support": "explicit"
+      },
+      {
+        "answer_source": "human_or_agent",
+        "confidence": 0.85,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_then_ask",
+        "name": "random_seed_and_data_split",
+        "necessity": "recommended",
+        "support": "inferred"
+      },
+      {
+        "answer_source": "agent",
+        "confidence": 0.95,
+        "description": "",
+        "evidence": [],
+        "missing_policy": "discover_only",
+        "name": "existing_dependencies",
+        "necessity": "recommended",
+        "support": "explicit"
+      }
+    ]
+  },
+  "llm_backend": "OpenAILLM",
+  "model": "deepseek-chat",
+  "stages": [
+    {
+      "parsed": {
+        "activation_triggers": [
+          "An experiment run produces unexpected results, crashes, or non-deterministic output",
+          "A user asks to debug a research pipeline, benchmark run, or evaluation script"
+        ],
+        "execution_steps": [
+          "Read the experiment log or error output.",
+          "Identify the failing component: data loading, model inference, scoring, or output serialization.",
+          "Reproduce the failure with the smallest relevant input.",
+          "Isolate the root cause.",
+          "Propose a minimal fix."
+        ],
+        "forbidden_actions": [
+          "Do not change the experiment protocol or evaluation metric.",
+          "Do not modify benchmark scores or expected outputs without explicit authorization.",
+          "Do not alter the experiment's random seed or data split.",
+          "Do not delete experiment results or logs.",
+          "Do not introduce new dependencies."
+        ],
+        "output_requirements": [
+          "Root cause analysis with log evidence",
+          "A minimal fix that preserves the original experiment intent",
+          "The smallest reproduction command and its result after fix"
+        ],
+        "safety_constraints": [],
+        "verification_statements": []
+      },
+      "raw": "```json\n{\n  \"activation_triggers\": [\n    \"An experiment run produces unexpected results, crashes, or non-deterministic output\",\n    \"A user asks to debug a research pipeline, benchmark run, or evaluation script\"\n  ],\n  \"execution_steps\": [\n    \"Read the experiment log or error output.\",\n    \"Identify the failing component: data loading, model inference, scoring, or output serialization.\",\n    \"Reproduce the failure with the smallest relevant input.\",\n    \"Isolate the root cause.\",\n    \"Propose a minimal fix.\"\n  ],\n  \"output_requirements\": [\n    \"Root cause analysis with log evidence\",\n    \"A minimal fix that preserves the original experiment intent\",\n    \"The smallest reproduction command and its result after fix\"\n  ],\n  \"forbidden_actions\": [\n    \"Do not change the experiment protocol or evaluation metric.\",\n    \"Do not modify benchmark scores or expected outputs without explicit authorization.\",\n    \"Do not alter the experiment's random seed or data split.\",\n    \"Do not delete experiment results or logs.\",\n    \"Do not introduce new dependencies.\"\n  ],\n  \"verification_statements\": [],\n  \"safety_constraints\": []\n}\n```",
+      "stage": "extract"
+    },
+    {
+      "parsed": [
+        {
+          "description": "The experiment log or error output that describes the failure or unexpected behavior.",
+          "evidence": [
+            {
+              "quote": "Read the experiment log or error output.",
+              "rationale": "The first execution step explicitly requires reading the log or error output, so this input must be provided before activation."
+            }
+          ],
+          "name": "experiment_log_or_error_output",
+          "necessity": "required"
+        },
+        {
+          "description": "A description of what the experiment was intended to do, including its protocol, evaluation metric, and expected outputs.",
+          "evidence": [
+            {
+              "quote": "A minimal fix that preserves the original experiment intent",
+              "rationale": "The output requirement demands preserving the original experiment intent, so the agent must know what that intent is before proposing a fix."
+            },
+            {
+              "quote": "Do not change the experiment protocol or evaluation metric.",
+              "rationale": "The forbidden actions prohibit changing the protocol or metric, implying the agent needs to know these details to avoid violating the constraint."
+            }
+          ],
+          "name": "original_experiment_intent",
+          "necessity": "required"
+        },
+        {
+          "description": "The smallest input or data subset that can reproduce the failure, to be used for reproduction and isolation.",
+          "evidence": [
+            {
+              "quote": "Reproduce the failure with the smallest relevant input.",
+              "rationale": "The execution step explicitly requires reproducing the failure with the smallest relevant input, so this input must be available or derivable from the log."
+            }
+          ],
+          "name": "smallest_relevant_input",
+          "necessity": "required"
+        },
+        {
+          "description": "Information about which component (data loading, model inference, scoring, or output serialization) is suspected to be failing, or the context needed to identify it.",
+          "evidence": [
+            {
+              "quote": "Identify the failing component: data loading, model inference, scoring, or output serialization.",
+              "rationale": "The execution step requires identifying the failing component, so the agent needs enough context (e.g., logs, code structure) to determine this."
+            }
+          ],
+          "name": "failing_component_context",
+          "necessity": "required"
+        },
+        {
+          "description": "Explicit authorization from the user to modify benchmark scores or expected outputs, if such changes are needed.",
+          "evidence": [
+            {
+              "quote": "Do not modify benchmark scores or expected outputs without explicit authorization.",
+              "rationale": "The forbidden action requires explicit authorization before modifying scores or outputs, so the agent must know whether such authorization has been given."
+            }
+          ],
+          "name": "authorization_for_modifications",
+          "necessity": "required"
+        },
+        {
+          "description": "The random seed and data split used in the experiment, to ensure they are not altered during debugging.",
+          "evidence": [
+            {
+              "quote": "Do not alter the experiment's random seed or data split.",
+              "rationale": "The forbidden action prohibits altering the seed or split, so the agent must know these values to avoid changing them."
+            }
+          ],
+          "name": "random_seed_and_data_split",
+          "necessity": "required"
+        },
+        {
+          "description": "A list of current dependencies (libraries, packages) used by the experiment, to avoid introducing new ones.",
+          "evidence": [
+            {
+              "quote": "Do not introduce new dependencies.",
+              "rationale": "The forbidden action prohibits new dependencies, so the agent must know the existing dependencies to ensure compliance."
+            }
+          ],
+          "name": "existing_dependencies",
+          "necessity": "required"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"experiment_log_or_error_output\",\n    \"description\": \"The experiment log or error output that describes the failure or unexpected behavior.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Read the experiment log or error output.\",\n        \"rationale\": \"The first execution step explicitly requires reading the log or error output, so this input must be provided before activation.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"original_experiment_intent\",\n    \"description\": \"A description of what the experiment was intended to do, including its protocol, evaluation metric, and expected outputs.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"A minimal fix that preserves the original experiment intent\",\n        \"rationale\": \"The output requirement demands preserving the original experiment intent, so the agent must know what that intent is before proposing a fix.\"\n      },\n      {\n        \"quote\": \"Do not change the experiment protocol or evaluation metric.\",\n        \"rationale\": \"The forbidden actions prohibit changing the protocol or metric, implying the agent needs to know these details to avoid violating the constraint.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"smallest_relevant_input\",\n    \"description\": \"The smallest input or data subset that can reproduce the failure, to be used for reproduction and isolation.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Reproduce the failure with the smallest relevant input.\",\n        \"rationale\": \"The execution step explicitly requires reproducing the failure with the smallest relevant input, so this input must be available or derivable from the log.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"failing_component_context\",\n    \"description\": \"Information about which component (data loading, model inference, scoring, or output serialization) is suspected to be failing, or the context needed to identify it.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Identify the failing component: data loading, model inference, scoring, or output serialization.\",\n        \"rationale\": \"The execution step requires identifying the failing component, so the agent needs enough context (e.g., logs, code structure) to determine this.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"authorization_for_modifications\",\n    \"description\": \"Explicit authorization from the user to modify benchmark scores or expected outputs, if such changes are needed.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Do not modify benchmark scores or expected outputs without explicit authorization.\",\n        \"rationale\": \"The forbidden action requires explicit authorization before modifying scores or outputs, so the agent must know whether such authorization has been given.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"random_seed_and_data_split\",\n    \"description\": \"The random seed and data split used in the experiment, to ensure they are not altered during debugging.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Do not alter the experiment's random seed or data split.\",\n        \"rationale\": \"The forbidden action prohibits altering the seed or split, so the agent must know these values to avoid changing them.\"\n      }\n    ]\n  },\n  {\n    \"name\": \"existing_dependencies\",\n    \"description\": \"A list of current dependencies (libraries, packages) used by the experiment, to avoid introducing new ones.\",\n    \"necessity\": \"required\",\n    \"evidence\": [\n      {\n        \"quote\": \"Do not introduce new dependencies.\",\n        \"rationale\": \"The forbidden action prohibits new dependencies, so the agent must know the existing dependencies to ensure compliance.\"\n      }\n    ]\n  }\n]\n```",
+      "stage": "infer"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.95,
+          "missing_policy": "discover_then_ask",
+          "name": "experiment_log_or_error_output",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.95,
+          "missing_policy": "ask_user",
+          "name": "original_experiment_intent",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.85,
+          "missing_policy": "discover_then_ask",
+          "name": "smallest_relevant_input",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "agent",
+          "confidence": 0.8,
+          "missing_policy": "discover_only",
+          "name": "failing_component_context",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "authorization",
+          "confidence": 1.0,
+          "missing_policy": "ask_user",
+          "name": "authorization_for_modifications",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.85,
+          "missing_policy": "discover_then_ask",
+          "name": "random_seed_and_data_split",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "agent",
+          "confidence": 0.95,
+          "missing_policy": "discover_only",
+          "name": "existing_dependencies",
+          "support": "explicit"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"experiment_log_or_error_output\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  },\n  {\n    \"name\": \"original_experiment_intent\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  },\n  {\n    \"name\": \"smallest_relevant_input\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.85\n  },\n  {\n    \"name\": \"failing_component_context\",\n    \"answer_source\": \"agent\",\n    \"missing_policy\": \"discover_only\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.8\n  },\n  {\n    \"name\": \"authorization_for_modifications\",\n    \"answer_source\": \"authorization\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"random_seed_and_data_split\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.85\n  },\n  {\n    \"name\": \"existing_dependencies\",\n    \"answer_source\": \"agent\",\n    \"missing_policy\": \"discover_only\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  }\n]\n```",
+      "stage": "classify"
+    },
+    {
+      "parsed": [
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.95,
+          "missing_policy": "discover_then_ask",
+          "name": "experiment_log_or_error_output",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human",
+          "confidence": 0.95,
+          "missing_policy": "ask_user",
+          "name": "original_experiment_intent",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.85,
+          "missing_policy": "discover_then_ask",
+          "name": "smallest_relevant_input",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "agent",
+          "confidence": 0.8,
+          "missing_policy": "discover_only",
+          "name": "failing_component_context",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "authorization",
+          "confidence": 1.0,
+          "missing_policy": "ask_user",
+          "name": "authorization_for_modifications",
+          "support": "explicit"
+        },
+        {
+          "answer_source": "human_or_agent",
+          "confidence": 0.85,
+          "missing_policy": "discover_then_ask",
+          "name": "random_seed_and_data_split",
+          "support": "inferred"
+        },
+        {
+          "answer_source": "agent",
+          "confidence": 0.95,
+          "missing_policy": "discover_only",
+          "name": "existing_dependencies",
+          "support": "explicit"
+        }
+      ],
+      "raw": "```json\n[\n  {\n    \"name\": \"experiment_log_or_error_output\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  },\n  {\n    \"name\": \"original_experiment_intent\",\n    \"answer_source\": \"human\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  },\n  {\n    \"name\": \"smallest_relevant_input\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.85\n  },\n  {\n    \"name\": \"failing_component_context\",\n    \"answer_source\": \"agent\",\n    \"missing_policy\": \"discover_only\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.8\n  },\n  {\n    \"name\": \"authorization_for_modifications\",\n    \"answer_source\": \"authorization\",\n    \"missing_policy\": \"ask_user\",\n    \"support\": \"explicit\",\n    \"confidence\": 1.0\n  },\n  {\n    \"name\": \"random_seed_and_data_split\",\n    \"answer_source\": \"human_or_agent\",\n    \"missing_policy\": \"discover_then_ask\",\n    \"support\": \"inferred\",\n    \"confidence\": 0.85\n  },\n  {\n    \"name\": \"existing_dependencies\",\n    \"answer_source\": \"agent\",\n    \"missing_policy\": \"discover_only\",\n    \"support\": \"explicit\",\n    \"confidence\": 0.95\n  }\n]\n```",
+      "stage": "critique"
+    }
+  ]
+}

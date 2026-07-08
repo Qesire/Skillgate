@@ -1,0 +1,37 @@
+version: skill_input_contract.v1
+skill_id: experiment_debug
+skill_name: Experiment Debug
+activation:
+  triggers:
+  - An experiment run produces unexpected results, crashes, or non-deterministic output
+  - A user asks to debug a research pipeline, benchmark run, or evaluation script
+slots:
+- name: failure_symptom
+  description: 'The experiment failure symptom: error message, unexpected results,
+    crash, non-deterministic output'
+  necessity: required
+  answer_source: human
+  missing_policy: ask_user
+  support: inferred
+  confidence: 0.91
+  evidence:
+  - quote: Read the experiment log or error output.
+    rationale: Agent needs to know what went wrong before debugging
+- name: failing_component
+  description: 'Which component failed: data loading, model inference, scoring, or
+    output serialization'
+  necessity: recommended
+  answer_source: human_or_agent
+  missing_policy: discover_then_ask
+  support: inferred
+  confidence: 0.8
+  evidence:
+  - quote: 'Identify the failing component: data loading, model inference, scoring,
+      or output serialization.'
+    rationale: Narrowing the component speeds up debugging
+safe_defaults:
+- Do not change the experiment protocol or evaluation metric
+- Do not alter the experiment's random seed or data split
+block_if:
+- Do not introduce new dependencies
+- Do not delete experiment results or logs

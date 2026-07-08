@@ -1,0 +1,9 @@
+{
+  "confidence": 0.85,
+  "kind": "ask_user",
+  "questions": [
+    "What changes are permitted: source-only, tests allowed, public API changes"
+  ],
+  "reason": "Some required inputs need to be provided by the user.",
+  "skill_id": "bug_fix"
+}

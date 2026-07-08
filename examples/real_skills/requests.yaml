@@ -1,0 +1,48 @@
+# Representative user requests for the 5 real-style skills in examples/real_skills/.
+#
+# Each skill has two requests:
+#   vague    — minimal, ambiguous; likely triggers ask_user / explore_first
+#   complete — specifies symptom, target, scope, and constraints; likely
+#              compiles directly or with safe defaults applied
+#
+# These requests drive the core compile-stage fixture tests. They are
+# deliberately short and human-written so contract-driven decisions are
+# reproducible and inspectable.
+
+bug_fix:
+  vague: "fix the login bug"
+  complete: >-
+    Fix the KeyError crash in auth.py around line 42 that happens when a user
+    logs in with an expired token. Reproduce with `pytest tests/test_auth.py::test_expired_token`.
+    Keep changes to source only; do not modify tests, the public API, or add dependencies.
+
+code_review:
+  vague: "review my code"
+  complete: >-
+    Review the diff in PR #142 (files under src/api/) for security and
+    correctness issues only. Report only high-severity findings, each with a
+    file path and line range as evidence. This is read-only; do not modify files.
+
+refactor:
+  vague: "clean up the parser"
+  complete: >-
+    Refactor src/parser.py to split the monolithic parse() function into
+    smaller, named helpers for readability. Preserve behavior exactly; do not
+    change the public API or move files. Run `pytest tests/test_parser.py` to
+    confirm behavior is preserved.
+
+documentation_update:
+  vague: "improve the readme"
+  complete: >-
+    Update README.md to document the existing `skillgate audit-skill` and
+    `skillgate compile` commands for a developer audience. Only include facts
+    grounded in the repo (README, pyproject.toml, source). Do not invent metrics
+    or adoption numbers.
+
+experiment_debug:
+  vague: "the experiment is broken"
+  complete: >-
+    Debug the benchmark run that crashes during scoring with a TypeError in
+    scripts/score.py. The failure reproduces with `python scripts/run_benchmark.py
+    --suite p0`. Do not change the evaluation metric, the random seed, or the
+    expected outputs; keep the fix minimal and do not delete any result logs.

@@ -1,0 +1,63 @@
+{
+  "decision_kind": "explore_first",
+  "decision_reason": "Important context can be discovered through read-only local inspection.",
+  "schema_version": "skillgate.input_slot_state.v1",
+  "skill_id": "experiment_debug",
+  "slot_count": 3,
+  "slots": [
+    {
+      "ambiguity": "low",
+      "answer_source": "human_or_agent",
+      "assumption": null,
+      "category": "agent_discoverable",
+      "description": "Which component failed: data loading, model inference, scoring, or output serialization",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'failing_component' → agent_discoverable.",
+      "name": "failing_component",
+      "question": null,
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "agent_discoverable",
+      "status": "agent_discoverable",
+      "support": "inferred",
+      "text": "Which component failed: data loading, model inference, scoring, or output serialization",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "policy_default",
+      "assumption": "Do not change the experiment protocol or evaluation metric",
+      "category": "safe_assumption",
+      "description": "Do not change the experiment protocol or evaluation metric",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'do_not_change_the_experiment_protocol_or' → safe_assumption.",
+      "name": "do_not_change_the_experiment_protocol_or",
+      "question": null,
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "safe_assumptions",
+      "status": "safe_assumption",
+      "support": "recommended",
+      "text": "Do not change the experiment protocol or evaluation metric",
+      "value": null
+    },
+    {
+      "ambiguity": "low",
+      "answer_source": "policy_default",
+      "assumption": "Do not alter the experiment's random seed or data split",
+      "category": "safe_assumption",
+      "description": "Do not alter the experiment's random seed or data split",
+      "evidence_ids": [],
+      "handling_reason": "Slot 'do_not_alter_the_experiment's_random_see' → safe_assumption.",
+      "name": "do_not_alter_the_experiment's_random_see",
+      "question": null,
+      "risk": "low",
+      "schema_version": "skillgate.input_slot_state.v1",
+      "state_bucket": "safe_assumptions",
+      "status": "safe_assumption",
+      "support": "recommended",
+      "text": "Do not alter the experiment's random seed or data split",
+      "value": null
+    }
+  ]
+}
