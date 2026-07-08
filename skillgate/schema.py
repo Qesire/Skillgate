@@ -9,7 +9,7 @@ LEGACY_TASKBRIEF_VERSION = "taskbrief.v2.p0"
 # Backward compat alias
 SCHEMA_VERSION = "taskbrief.v2.p0"
 
-SKILL_INPUT_CONTRACT_VERSION = "skillgate.skill_input_contract.v1"
+SKILL_INPUT_CONTRACT_VERSION = "skillgate.skill_input_contract.v2"
 INPUT_SLOT_STATE_VERSION = "skillgate.input_slot_state.v1"
 NORMALIZED_SKILL_INPUT_VERSION = "skillgate.normalized_skill_input.v1"
 
@@ -202,12 +202,42 @@ def build_skill_input_contract(
     }
 
 
+V1_VERSION = "skillgate.skill_input_contract.v1"
+
+
+def migrate_contract_v1_to_v2(contract: dict[str, Any]) -> dict[str, Any]:
+    """Migrate a v1 SkillInputContract to v2.
+
+    v2 added five new section fields (safety_blocks, authorization_requirements,
+    execution_constraints, forbidden_actions, stop_conditions) replacing the
+    monolithic ``block_if``.  This migrator copies existing ``block_if`` entries
+    into ``safety_blocks`` (the closest semantic match) and fills the remaining
+    sections with empty lists so the contract is valid under the v2 schema.
+    """
+    migrated = dict(contract)
+    migrated["schema_version"] = SKILL_INPUT_CONTRACT_VERSION
+    for field in (
+        "safety_blocks",
+        "authorization_requirements",
+        "execution_constraints",
+        "forbidden_actions",
+        "stop_conditions",
+    ):
+        if field not in migrated:
+            migrated[field] = []
+    if "safety_blocks" in migrated and not migrated["safety_blocks"]:
+        migrated["safety_blocks"] = list(migrated.get("block_if", []))
+    if "block_if" not in migrated:
+        migrated["block_if"] = []
+    return migrated
+
+
 def validate_skill_input_contract(contract: dict[str, Any]) -> None:
     req = ["schema_version", "skill_id", "skill_name", "skill_version", "skill_description"]
     for key in req:
         if key not in contract:
             raise ValueError(f"SkillInputContract missing required key: {key}")
-    if contract["schema_version"] != SKILL_INPUT_CONTRACT_VERSION:
+    if contract["schema_version"] not in (SKILL_INPUT_CONTRACT_VERSION, V1_VERSION):
         raise ValueError(f"unexpected schema_version: {contract['schema_version']}")
     for section in [
         "required_slots", "ask_if_missing", "discover_if_missing",

@@ -1,0 +1,648 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:skillgate:schema:skill-input-contract:v1",
+  "title": "SkillGate SkillInputContract",
+  "description": "Reusable pre-activation input contract for a target skill.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "skill_id",
+    "skill_name",
+    "skill_version",
+    "skill_description",
+    "source_path",
+    "source_sha256",
+    "required_slots",
+    "ask_if_missing",
+    "discover_if_missing",
+    "safe_defaults",
+    "block_if",
+    "safety_blocks",
+    "authorization_requirements",
+    "execution_constraints",
+    "forbidden_actions",
+    "stop_conditions",
+    "contract_evidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "skillgate.skill_input_contract.v2"
+    },
+    "skill_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "skill_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "skill_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "skill_description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_path": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source_sha256": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "required_slots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "ask_if_missing": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "discover_if_missing": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "safe_defaults": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "block_if": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "safety_blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "authorization_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "execution_constraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "forbidden_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "stop_conditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "contract_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  }
+}

@@ -38,7 +38,7 @@ class DiscoveredSlot:
 @dataclass
 class DiscoveredContract:
     """Full contract discovered from a SKILL.md by the LLM auditor."""
-    version: str = "skill_input_contract.v1"
+    version: str = "skill_input_contract.v2"
     skill_id: str = ""
     skill_name: str = ""
     activation: dict[str, Any] = field(default_factory=dict)  # {triggers: [...], anti_triggers: [...]}

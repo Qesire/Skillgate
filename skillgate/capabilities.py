@@ -379,6 +379,10 @@ def get_contract_for_skill(skill_id: str) -> dict[str, Any]:
         raise ValueError(f"unknown skill_id: {skill_id}")
     contract = deepcopy(BUILTIN_CONTRACTS[skill_id])
     if "schema_version" in contract:
+        # Auto-migrate v1 contracts to v2
+        if contract["schema_version"] == "skillgate.skill_input_contract.v1":
+            from .schema import migrate_contract_v1_to_v2
+            return migrate_contract_v1_to_v2(contract)
         return contract
     return build_skill_input_contract(
         skill_id=contract["skill_id"],

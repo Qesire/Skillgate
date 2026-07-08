@@ -24,7 +24,7 @@ from .schema import (
 
 
 TASKBRIEF_SCHEMA_FILE = f"{SCHEMA_VERSION}.schema.json"
-SKILL_INPUT_CONTRACT_SCHEMA_FILE = "skill_input_contract.v1.schema.json"
+SKILL_INPUT_CONTRACT_SCHEMA_FILE = "skill_input_contract.v2.schema.json"
 INPUT_SLOT_STATE_SCHEMA_FILE = "input_slot_state.v1.schema.json"
 NORMALIZED_SKILL_INPUT_SCHEMA_FILE = "normalized_skill_input.v1.schema.json"
 DECISION_SCHEMA_FILE = "decision.v1.schema.json"

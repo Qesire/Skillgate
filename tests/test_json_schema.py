@@ -60,7 +60,7 @@ class JsonSchemaTests(unittest.TestCase):
                 "input_slot_state.v1.schema.json",
                 "normalized_skill_input.v1.schema.json",
                 "recompile.v2.schema.json",
-                "skill_input_contract.v1.schema.json",
+                "skill_input_contract.v2.schema.json",
             ],
             result["schemas"],
         )
