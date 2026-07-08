@@ -89,7 +89,7 @@ BUILTIN_CONTRACTS: dict[str, dict[str, Any]] = {
             _slot("no_external_side_effects", "Do not call external services or mutate remote data",
                   "safe_assumption", support="recommended"),
         ],
-        "block_if": [
+        "safety_blocks": [
             _slot("credential_exposure", "Credential or secret exfiltration",
                   "blocked", support="recommended"),
             _slot("production_mutation", "Production data mutation without authorization",
@@ -97,6 +97,13 @@ BUILTIN_CONTRACTS: dict[str, dict[str, Any]] = {
             _slot("destructive_operation", "Destructive operation (rm -rf, drop table, force push)",
                   "blocked", support="recommended"),
         ],
+        "authorization_requirements": [
+            _slot("destructive_action_permission", "Are file deletion or external side effects allowed?",
+                  "requires_authorization", support="recommended"),
+        ],
+        "execution_constraints": [],
+        "forbidden_actions": [],
+        "stop_conditions": [],
     },
     "failing_test_repair": {
         "skill_id": "failing_test_repair",
@@ -139,9 +146,13 @@ BUILTIN_CONTRACTS: dict[str, dict[str, Any]] = {
             _slot("minimal_source_fix", "Prefer minimal source changes",
                   "safe_assumption", support="recommended"),
         ],
-        "block_if": [
+        "safety_blocks": [
             _slot("credential_exposure", "Credential or secret exfiltration", "blocked", support="recommended"),
         ],
+        "authorization_requirements": [],
+        "execution_constraints": [],
+        "forbidden_actions": [],
+        "stop_conditions": [],
     },
     "code_review": {
         "skill_id": "code_review",
@@ -174,9 +185,16 @@ BUILTIN_CONTRACTS: dict[str, dict[str, Any]] = {
             _slot("redact_secrets", "Redact secret-like values in evidence",
                   "safe_assumption", support="recommended"),
         ],
-        "block_if": [
+        "safety_blocks": [
             _slot("credential_exposure", "Printing full secret values", "blocked", support="recommended"),
         ],
+        "authorization_requirements": [
+            _slot("permission_to_modify", "Is modifying files allowed during review?",
+                  "requires_authorization", support="recommended"),
+        ],
+        "execution_constraints": [],
+        "forbidden_actions": [],
+        "stop_conditions": [],
     },
     "refactor": {
         "skill_id": "refactor",
@@ -208,9 +226,16 @@ BUILTIN_CONTRACTS: dict[str, dict[str, Any]] = {
                   "safe_assumption", support="recommended"),
             _slot("localized_changes", "Keep changes localized", "safe_assumption", support="recommended"),
         ],
-        "block_if": [
+        "safety_blocks": [
             _slot("credential_exposure", "Credential or secret exfiltration", "blocked", support="recommended"),
         ],
+        "authorization_requirements": [
+            _slot("batch_file_moves", "Are batch file moves/renames authorized?",
+                  "requires_authorization", support="recommended"),
+        ],
+        "execution_constraints": [],
+        "forbidden_actions": [],
+        "stop_conditions": [],
     },
     "documentation_update": {
         "skill_id": "documentation_update",
@@ -243,10 +268,14 @@ BUILTIN_CONTRACTS: dict[str, dict[str, Any]] = {
             _slot("no_fabrication", "Do not invent metrics, adoption, or benchmark claims",
                   "safe_assumption", support="recommended"),
         ],
-        "block_if": [
+        "forbidden_actions": [
             _slot("fabricated_claims", "Fabricating unsupported project claims",
                   "blocked", support="recommended"),
         ],
+        "safety_blocks": [],
+        "authorization_requirements": [],
+        "execution_constraints": [],
+        "stop_conditions": [],
     },
     "feature_impl": {
         "skill_id": "feature_impl",
@@ -283,10 +312,17 @@ BUILTIN_CONTRACTS: dict[str, dict[str, Any]] = {
             _slot("no_payment_secrets", "Do not request or use payment secrets",
                   "safe_assumption", support="recommended"),
         ],
-        "block_if": [
+        "safety_blocks": [
             _slot("payment_credentials", "Payment API without safe sandbox setup",
                   "blocked", support="recommended"),
         ],
+        "authorization_requirements": [
+            _slot("external_service", "Are external service calls or payment APIs involved?",
+                  "requires_authorization", support="recommended"),
+        ],
+        "execution_constraints": [],
+        "forbidden_actions": [],
+        "stop_conditions": [],
     },
     "generic_unknown": {
         "skill_id": "generic_unknown",
@@ -313,12 +349,17 @@ BUILTIN_CONTRACTS: dict[str, dict[str, Any]] = {
             _slot("no_modification", "Do not modify files until task direction is known",
                   "safe_assumption", support="recommended"),
         ],
-        "block_if": [
+        "stop_conditions": [
             _slot("unclear_intent", "Task direction is fundamentally unclear",
                   "blocked", support="recommended"),
+        ],
+        "safety_blocks": [
             _slot("destructive", "Destructive operation without authorization",
                   "blocked", support="recommended"),
         ],
+        "authorization_requirements": [],
+        "execution_constraints": [],
+        "forbidden_actions": [],
     },
 }
 
@@ -348,7 +389,12 @@ def get_contract_for_skill(skill_id: str) -> dict[str, Any]:
         ask_if_missing=contract["ask_if_missing"],
         discover_if_missing=contract["discover_if_missing"],
         safe_defaults=contract["safe_defaults"],
-        block_if=contract["block_if"],
+        safety_blocks=contract.get("safety_blocks", []),
+        authorization_requirements=contract.get("authorization_requirements", []),
+        execution_constraints=contract.get("execution_constraints", []),
+        forbidden_actions=contract.get("forbidden_actions", []),
+        stop_conditions=contract.get("stop_conditions", []),
+        block_if=contract.get("block_if", []),
     )
 
 
@@ -369,7 +415,13 @@ def get_capability_for_task(task_kind: str) -> dict[str, Any]:
     discoverable = [s["id"] for s in contract["discover_if_missing"]]
     must_ask = [s["id"] for s in contract["ask_if_missing"] if s["category"] == "human_askable"]
     defaults = {s["id"]: s["text"] for s in contract["safe_defaults"]}
-    forbidden = [s["text"] for s in contract["block_if"]] + [s["text"] for s in contract["safe_defaults"]]
+    forbidden = (
+        [s["text"] for s in contract["block_if"]]
+        + [s["text"] for s in contract["safety_blocks"]]
+        + [s["text"] for s in contract["forbidden_actions"]]
+        + [s["text"] for s in contract["stop_conditions"]]
+        + [s["text"] for s in contract["safe_defaults"]]
+    )
     verification = [s["text"] for s in contract["discover_if_missing"]]
     return {
         "id": contract["skill_id"],

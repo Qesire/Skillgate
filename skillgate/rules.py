@@ -6,7 +6,7 @@ this module now analyzes a raw request against a specific SkillInputContract.
 The decision flow:
 1. Load the skill contract
 2. Classify task kind (for skill selection if not explicit)
-3. Check block_if conditions
+3. Check safety_blocks, forbidden_actions, and stop_conditions
 4. Evaluate each contract slot against the request
 5. Classify slots as human_askable/agent_discoverable/safe_assumption/blocked
 6. Decide: ask_user / explore_first / assume_and_continue / compile_directly / block_unsafe
@@ -97,8 +97,17 @@ def analyze_against_skill(
 
     contract = get_contract_for_skill(skill_id)
 
-    # 2. Check block conditions
-    block_reason = _check_block_conditions(contract["block_if"], raw_request)
+    # Backward compat: if old contract only has "block_if" but no new fields,
+    # copy block_if items to safety_blocks.
+    _ensure_modern_contract_sections(contract)
+
+    # 2. Check block conditions (safety_blocks + forbidden_actions + stop_conditions)
+    all_block_conditions = (
+        contract.get("safety_blocks", [])
+        + contract.get("forbidden_actions", [])
+        + contract.get("stop_conditions", [])
+    )
+    block_reason = _check_block_conditions(all_block_conditions, raw_request)
     if block_reason:
         return _make_decision(
             skill_id=skill_id,
@@ -107,7 +116,7 @@ def analyze_against_skill(
             decision_kind="block_unsafe",
             reason=block_reason,
             confidence=0.95,
-            blocked=[{"id": b["id"], "text": b["text"], "category": "blocked"} for b in contract["block_if"]],
+            blocked=[{"id": b["id"], "text": b["text"], "category": "blocked"} for b in all_block_conditions],
         )
 
     # 3. Evaluate slots against the request
@@ -127,6 +136,15 @@ def analyze_against_skill(
     # Safe defaults (process first so auth-coverage check can use them)
     for slot in contract["safe_defaults"]:
         safe_assumptions.append(_build_slot_state(slot, raw_request, "safe_assumption"))
+
+    # Authorization requirements (separate from ask_if_missing for clarity)
+    for slot in contract.get("authorization_requirements", []):
+        if _slot_is_filled(slot, raw_request, context):
+            human_provided.append(_build_slot_state(slot, raw_request, "known"))
+        elif _is_covered_by_safe_default(slot, safe_assumptions):
+            safe_assumptions.append(_build_slot_state(slot, raw_request, "safe_assumption"))
+        else:
+            requires_authorization.append(_build_slot_state(slot, raw_request, "requires_authorization"))
 
     # Ask-if-missing slots
     for slot in contract["ask_if_missing"]:
@@ -274,6 +292,20 @@ def _check_block_conditions(block_if: list[dict[str, Any]], raw_request: str) ->
         if "payment" in text and _contains(lower, ["密钥", "secret", "api key", "credential", "stripe", "付款", "payment"]):
             return "Payment integration with secret usage requires explicit safe sandbox setup."
     return None
+
+
+def _ensure_modern_contract_sections(contract: dict[str, Any]) -> None:
+    """Backward compat: if old contract only has 'block_if' but no new fields,
+    copy block_if items to 'safety_blocks'. Also ensure empty lists for missing new fields."""
+    # If the contract was built by the old build_skill_input_contract,
+    # it will have "block_if" but may not have the five new sections.
+    old_block = contract.get("block_if", [])
+    if old_block and not contract.get("safety_blocks"):
+        contract["safety_blocks"] = list(old_block)
+    for key in ("safety_blocks", "authorization_requirements",
+                "execution_constraints", "forbidden_actions", "stop_conditions"):
+        if key not in contract:
+            contract[key] = []
 
 
 def _effective_category(slot: dict[str, Any]) -> str:
@@ -523,6 +555,14 @@ def _slot_is_filled(slot: dict[str, Any], raw_request: str, context: ContextResu
             "implement", "feature", "bug", "重构", "审查", "文档",
         ])
 
+    # Generic fallback for custom skill slots not in the hardcoded list.
+    # Use the slot's text/description for keyword matching against the raw request.
+    slot_text = slot.get("text", "")
+    if slot_text:
+        # Tokenize the slot description and check if any significant word appears
+        keywords = [w.lower() for w in slot_text.split() if len(w) > 2]
+        if any(kw in raw_request.lower() for kw in keywords[:20]):  # cap at 20 keywords to avoid noise
+            return True
     return False
 
 

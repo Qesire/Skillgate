@@ -153,6 +153,11 @@ def build_skill_input_contract(
     ask_if_missing: list[dict[str, Any]] | None = None,
     discover_if_missing: list[dict[str, Any]] | None = None,
     safe_defaults: list[dict[str, Any]] | None = None,
+    safety_blocks: list[dict[str, Any]] | None = None,
+    authorization_requirements: list[dict[str, Any]] | None = None,
+    execution_constraints: list[dict[str, Any]] | None = None,
+    forbidden_actions: list[dict[str, Any]] | None = None,
+    stop_conditions: list[dict[str, Any]] | None = None,
     block_if: list[dict[str, Any]] | None = None,
     contract_evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -160,7 +165,21 @@ def build_skill_input_contract(
 
     Each slot entry is {id, text, category} where category is one of:
     'human_askable', 'agent_discoverable', 'safe_assumption', 'requires_authorization', 'blocked'.
+
+    The five specialized block categories:
+    - safety_blocks: request safety blocks (dangerous task)
+    - authorization_requirements: actions needing user permission
+    - execution_constraints: don't modify X, don't change Y
+    - forbidden_actions: never introduce dependencies, never do X
+    - stop_conditions: block if X is missing
+
+    ``block_if`` is kept for backward compatibility; if provided without
+    ``safety_blocks``, it is mapped to ``safety_blocks``.
     """
+    # Backward compat: block_if → safety_blocks
+    if block_if is not None and safety_blocks is None:
+        safety_blocks = block_if
+
     return {
         "schema_version": SKILL_INPUT_CONTRACT_VERSION,
         "skill_id": skill_id,
@@ -173,7 +192,12 @@ def build_skill_input_contract(
         "ask_if_missing": ask_if_missing or [],
         "discover_if_missing": discover_if_missing or [],
         "safe_defaults": safe_defaults or [],
-        "block_if": block_if or [],
+        "safety_blocks": safety_blocks or [],
+        "authorization_requirements": authorization_requirements or [],
+        "execution_constraints": execution_constraints or [],
+        "forbidden_actions": forbidden_actions or [],
+        "stop_conditions": stop_conditions or [],
+        "block_if": safety_blocks or [],  # backward compat alias
         "contract_evidence": contract_evidence or [],
     }
 
@@ -185,7 +209,12 @@ def validate_skill_input_contract(contract: dict[str, Any]) -> None:
             raise ValueError(f"SkillInputContract missing required key: {key}")
     if contract["schema_version"] != SKILL_INPUT_CONTRACT_VERSION:
         raise ValueError(f"unexpected schema_version: {contract['schema_version']}")
-    for section in ["required_slots", "ask_if_missing", "discover_if_missing", "safe_defaults", "block_if"]:
+    for section in [
+        "required_slots", "ask_if_missing", "discover_if_missing",
+        "safe_defaults", "block_if",
+        "safety_blocks", "authorization_requirements",
+        "execution_constraints", "forbidden_actions", "stop_conditions",
+    ]:
         items = contract.get(section, [])
         if not isinstance(items, list):
             raise ValueError(f"SkillInputContract.{section} must be a list")

@@ -402,6 +402,10 @@ def audit_skill_with_llm_traced(
 
     if not isinstance(inferred, list):
         inferred = [inferred] if isinstance(inferred, dict) else []
+
+    # ── Quote verification ────────────────────────────────
+    inferred = _verify_quotes(inferred, skill_content)
+
     trace["stages"].append({
         "stage": "infer",
         "raw": inferred_raw,
@@ -545,10 +549,79 @@ def audit_skill_file_with_llm(
     content = path.read_text(encoding="utf-8")
     if skill_id_hint is None:
         skill_id_hint = path.stem.lower() if path.stem != "SKILL" else path.parent.name.lower().replace(" ", "_")
-    return audit_skill_with_llm(content, llm, skill_id_hint=skill_id_hint)
+
+    contract = audit_skill_with_llm(content, llm, skill_id_hint=skill_id_hint)
+
+    # Final deterministic verification of evidence quotes against the source file.
+    raw_slots: list[dict] = []
+    for s in contract.slots:
+        raw_slots.append({
+            "name": s.name,
+            "evidence": list(s.evidence),
+            "confidence": s.confidence,
+        })
+    verified = _verify_quotes(raw_slots, content)
+    for slot, vs in zip(contract.slots, verified):
+        slot.confidence = float(vs.get("confidence", slot.confidence))
+        for ev, vev in zip(slot.evidence, vs.get("evidence", [])):
+            ev["quote_verified"] = vev.get("quote_verified", False)
+            ev["quote_line_start"] = vev.get("quote_line_start")
+
+    return contract
 
 
 # ── Helpers ──────────────────────────────────────────────────
+
+
+def _verify_quotes(slots: list[dict], source_text: str) -> list[dict]:
+    """Verify that evidence quotes actually appear in the source document.
+
+    For each slot with a non-empty ``quote`` field in its ``evidence`` list,
+    checks whether the quote is an exact substring of *source_text*.
+
+    Slots with missing or non-matching quotes are flagged with
+    ``quote_verified: False`` and their ``confidence`` is set to **0.0**.
+
+    Args:
+        slots: List of slot dicts (from the infer or classify stage).
+        source_text: Full text of the source SKILL.md document.
+
+    Returns:
+        The same list, mutated in-place, with per-evidence ``quote_verified``
+        and ``quote_line_start`` fields added, and ``confidence`` zeroed out
+        for any slot whose quotes cannot be verified.
+    """
+    for slot in slots:
+        evidence_list = slot.get("evidence", [])
+        all_verified = True
+
+        for ev in evidence_list:
+            quote = ev.get("quote", "")
+            if not quote or not quote.strip():
+                ev["quote_verified"] = False
+                ev["quote_line_start"] = None
+                all_verified = False
+                continue
+
+            idx = source_text.find(quote)
+            if idx == -1:
+                ev["quote_verified"] = False
+                ev["quote_line_start"] = None
+                all_verified = False
+            else:
+                line_num = source_text[:idx].count("\n") + 1
+                ev["quote_verified"] = True
+                ev["quote_line_start"] = line_num
+
+        # If every evidence entry failed verification (or there are none),
+        # zero out the slot-level confidence.
+        if not all_verified:
+            slot["confidence"] = 0.0
+        elif not evidence_list:
+            # No evidence at all — cannot verify.
+            slot["confidence"] = 0.0
+
+    return slots
 
 
 def _clean_json(raw: str) -> str:

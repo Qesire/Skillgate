@@ -141,6 +141,11 @@ def skill_input_contract_json_schema() -> dict[str, Any]:
             "discover_if_missing",
             "safe_defaults",
             "block_if",
+            "safety_blocks",
+            "authorization_requirements",
+            "execution_constraints",
+            "forbidden_actions",
+            "stop_conditions",
             "contract_evidence",
         ],
         "properties": {
@@ -156,6 +161,11 @@ def skill_input_contract_json_schema() -> dict[str, Any]:
             "discover_if_missing": {"type": "array", "items": slot},
             "safe_defaults": {"type": "array", "items": slot},
             "block_if": {"type": "array", "items": slot},
+            "safety_blocks": {"type": "array", "items": slot},
+            "authorization_requirements": {"type": "array", "items": slot},
+            "execution_constraints": {"type": "array", "items": slot},
+            "forbidden_actions": {"type": "array", "items": slot},
+            "stop_conditions": {"type": "array", "items": slot},
             "contract_evidence": {
                 "type": "array",
                 "items": {"type": "object", "additionalProperties": True},
