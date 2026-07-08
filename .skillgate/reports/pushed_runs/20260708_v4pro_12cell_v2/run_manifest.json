@@ -1,0 +1,81 @@
+{
+  "agent": "opencode",
+  "created_at": "2026-07-08T10:39:37.825487+00:00",
+  "jobs_root": "/home/knowingthesea/skillgate/.skillgate/reports/skillsbench_first/jobs/real_matrix/20260708_v4pro_12cell_v2",
+  "plan": [
+    {
+      "condition": "raw_no_skill",
+      "model": "ustc-deepseek/deepseek-v4-pro",
+      "task_id": "debug-trl-grpo",
+      "trial_id": "trial_1"
+    },
+    {
+      "condition": "curated_with_skill",
+      "model": "ustc-deepseek/deepseek-v4-pro",
+      "task_id": "debug-trl-grpo",
+      "trial_id": "trial_1"
+    },
+    {
+      "condition": "skillgate_native_invocation",
+      "model": "ustc-deepseek/deepseek-v4-pro",
+      "task_id": "debug-trl-grpo",
+      "trial_id": "trial_1"
+    },
+    {
+      "condition": "raw_no_skill",
+      "model": "ustc-deepseek/deepseek-v4-pro",
+      "task_id": "suricata-custom-exfil",
+      "trial_id": "trial_1"
+    },
+    {
+      "condition": "curated_with_skill",
+      "model": "ustc-deepseek/deepseek-v4-pro",
+      "task_id": "suricata-custom-exfil",
+      "trial_id": "trial_1"
+    },
+    {
+      "condition": "skillgate_native_invocation",
+      "model": "ustc-deepseek/deepseek-v4-pro",
+      "task_id": "suricata-custom-exfil",
+      "trial_id": "trial_1"
+    },
+    {
+      "condition": "raw_no_skill",
+      "model": "ustc-deepseek/deepseek-v4-pro",
+      "task_id": "energy-unit-commitment",
+      "trial_id": "trial_1"
+    },
+    {
+      "condition": "curated_with_skill",
+      "model": "ustc-deepseek/deepseek-v4-pro",
+      "task_id": "energy-unit-commitment",
+      "trial_id": "trial_1"
+    },
+    {
+      "condition": "skillgate_native_invocation",
+      "model": "ustc-deepseek/deepseek-v4-pro",
+      "task_id": "energy-unit-commitment",
+      "trial_id": "trial_1"
+    },
+    {
+      "condition": "raw_no_skill",
+      "model": "ustc-deepseek/deepseek-v4-pro",
+      "task_id": "syzkaller-ppdev-syzlang",
+      "trial_id": "trial_1"
+    },
+    {
+      "condition": "curated_with_skill",
+      "model": "ustc-deepseek/deepseek-v4-pro",
+      "task_id": "syzkaller-ppdev-syzlang",
+      "trial_id": "trial_1"
+    },
+    {
+      "condition": "skillgate_native_invocation",
+      "model": "ustc-deepseek/deepseek-v4-pro",
+      "task_id": "syzkaller-ppdev-syzlang",
+      "trial_id": "trial_1"
+    }
+  ],
+  "source_manifest": "/home/knowingthesea/skillgate/.skillgate/reports/skillsbench_first/experiment_manifest.v3_12cell.json",
+  "staged_root": "/home/knowingthesea/skillgate/.skillgate/reports/skillsbench_first/staged_v3_main"
+}

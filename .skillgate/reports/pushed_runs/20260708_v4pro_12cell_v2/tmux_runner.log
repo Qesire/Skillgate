@@ -1,0 +1,5 @@
+[1/12] raw_no_skill debug-trl-grpo ustc-deepseek/deepseek-v4-pro -> ustc-deepseek/deepseek-v4-pro
+[2/12] curated_with_skill debug-trl-grpo ustc-deepseek/deepseek-v4-pro -> ustc-deepseek/deepseek-v4-pro
+[3/12] skillgate_native_invocation debug-trl-grpo ustc-deepseek/deepseek-v4-pro -> ustc-deepseek/deepseek-v4-pro
+[4/12] raw_no_skill suricata-custom-exfil ustc-deepseek/deepseek-v4-pro -> ustc-deepseek/deepseek-v4-pro
+[5/12] curated_with_skill suricata-custom-exfil ustc-deepseek/deepseek-v4-pro -> ustc-deepseek/deepseek-v4-pro
