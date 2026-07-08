@@ -47,7 +47,12 @@ class DiscoveredContract:
     block_if: list[str] = field(default_factory=list)
 
     def to_builtin_format(self) -> dict[str, Any]:
-        """Convert to the format expected by capabilities.py / rules.py."""
+        """**Internal converter.**  Transform to canonical ``SkillInputContract``
+        dict (the format returned by :func:`build_skill_input_contract`).
+
+        Use :meth:`from_llm_output` when you have raw LLM output and want a
+        validated canonical contract in one step.
+        """
         from .capabilities import _slot as cap_slot
 
         category_map = {
@@ -106,6 +111,63 @@ class DiscoveredContract:
             "safe_defaults": safe_defaults,
             "block_if": blocked,
         }
+
+    @classmethod
+    def from_llm_output(cls, raw_parsed: dict[str, Any]) -> dict[str, Any]:
+        """Build a canonical ``SkillInputContract`` from the LLM's raw parsed output.
+
+        This is the public bridge: feed it the JSON the LLM returned after
+        the review stage and get back a validated contract dict suitable for
+        ``yaml.safe_dump()`` or direct injection into ``BUILTIN_CONTRACTS``.
+
+        Internally it reconstructs the :class:`DiscoveredContract`, then
+        calls :meth:`to_builtin_format`.
+        """
+        slots: list[dict[str, Any]] = raw_parsed.get("slots", [])
+        if not isinstance(slots, list):
+            slots = []
+
+        safe_defaults: list[str] = [
+            s.get("description", s.get("name", ""))
+            for s in slots
+            if s.get("answer_source") == "policy_default"
+        ]
+        block_if: list[str] = [
+            s.get("description", s.get("name", ""))
+            for s in slots
+            if s.get("answer_source") == "blocked"
+        ]
+
+        discovered_slots: list[DiscoveredSlot] = []
+        for raw in slots:
+            if not isinstance(raw, dict):
+                continue
+            ans = raw.get("answer_source", "human")
+            if ans in ("policy_default", "blocked"):
+                continue
+            discovered_slots.append(DiscoveredSlot(
+                name=raw.get("name", "unknown"),
+                description=raw.get("description", ""),
+                necessity=raw.get("necessity", "recommended"),
+                answer_source=ans,
+                missing_policy=raw.get("missing_policy", "ask_user"),
+                support=raw.get("support", "guessed"),
+                confidence=float(raw.get("confidence", 0.5)),
+                evidence=raw.get("evidence", []),
+            ))
+
+        skill_name = raw_parsed.get("skill_name", "")
+        activation = raw_parsed.get("activation", {})
+
+        contract = cls(
+            skill_id=raw_parsed.get("skill_id", ""),
+            skill_name=skill_name,
+            activation=activation,
+            slots=discovered_slots,
+            safe_defaults=safe_defaults,
+            block_if=block_if,
+        )
+        return contract.to_builtin_format()
 
 
 def _text_to_id(text: str) -> str:

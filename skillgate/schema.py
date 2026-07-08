@@ -253,8 +253,10 @@ def build_input_slot_state(
     risk: str = "low",
     ambiguity: str = "low",
     handling_reason: str = "",
+    confidence: float = 1.0,
+    missing_policy: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    result: dict[str, Any] = {
         "schema_version": INPUT_SLOT_STATE_VERSION,
         "name": name,
         "text": description,       # compat alias
@@ -270,7 +272,11 @@ def build_input_slot_state(
         "risk": risk,
         "ambiguity": ambiguity,
         "handling_reason": handling_reason,
+        "confidence": confidence,
     }
+    if missing_policy is not None:
+        result["missing_policy"] = missing_policy
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -289,6 +295,7 @@ def build_normalized_skill_input(
     safe_defaults: list[dict[str, Any]],
     requires_authorization: list[dict[str, Any]],
     blocked: list[dict[str, Any]],
+    execution_constraints: list[dict[str, Any]],
     decision_kind: str,
     decision_reason: str,
     activation_instruction: str,
@@ -306,6 +313,7 @@ def build_normalized_skill_input(
         "safe_defaults": safe_defaults,
         "requires_authorization": requires_authorization,
         "blocked": blocked,
+        "execution_constraints": execution_constraints,
         "decision_kind": decision_kind,
         "decision_reason": decision_reason,
         "activation_instruction": activation_instruction,

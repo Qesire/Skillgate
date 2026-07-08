@@ -41,6 +41,11 @@
         "safe_assumption"
       ]
     },
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "type": "number"
+    },
     "description": {
       "minLength": 1,
       "type": "string"
@@ -54,6 +59,9 @@
       "type": "array"
     },
     "handling_reason": {
+      "type": "string"
+    },
+    "missing_policy": {
       "type": "string"
     },
     "name": {
@@ -128,7 +136,8 @@
     "support",
     "risk",
     "ambiguity",
-    "handling_reason"
+    "handling_reason",
+    "confidence"
   ],
   "title": "SkillGate InputSlotState",
   "type": "object"

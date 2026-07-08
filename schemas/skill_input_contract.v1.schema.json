@@ -6,7 +6,6 @@
   "properties": {
     "ask_if_missing": {
       "items": {
-        "additionalProperties": false,
         "properties": {
           "answer_source": {
             "enum": [
@@ -30,112 +29,14 @@
               "safe_assumption"
             ]
           },
-          "id": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "support": {
-            "enum": [
-              "explicit",
-              "guessed",
-              "inferred",
-              "recommended"
-            ]
-          },
-          "text": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "text",
-          "category"
-        ],
-        "type": "object"
-      },
-      "type": "array"
-    },
-    "block_if": {
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "answer_source": {
-            "enum": [
-              "agent",
-              "authorization",
-              "blocked",
-              "human",
-              "human_or_agent",
-              "known",
-              "policy_default"
-            ]
-          },
-          "category": {
-            "enum": [
-              "agent_discoverable",
-              "blocked",
-              "human_askable",
-              "irrelevant",
-              "known",
-              "requires_authorization",
-              "safe_assumption"
-            ]
+          "confidence": {
+            "type": "number"
           },
           "id": {
             "minLength": 1,
             "type": "string"
           },
-          "support": {
-            "enum": [
-              "explicit",
-              "guessed",
-              "inferred",
-              "recommended"
-            ]
-          },
-          "text": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "text",
-          "category"
-        ],
-        "type": "object"
-      },
-      "type": "array"
-    },
-    "safety_blocks": {
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "answer_source": {
-            "enum": [
-              "agent",
-              "authorization",
-              "blocked",
-              "human",
-              "human_or_agent",
-              "known",
-              "policy_default"
-            ]
-          },
-          "category": {
-            "enum": [
-              "agent_discoverable",
-              "blocked",
-              "human_askable",
-              "irrelevant",
-              "known",
-              "requires_authorization",
-              "safe_assumption"
-            ]
-          },
-          "id": {
-            "minLength": 1,
+          "missing_policy": {
             "type": "string"
           },
           "support": {
@@ -162,7 +63,6 @@
     },
     "authorization_requirements": {
       "items": {
-        "additionalProperties": false,
         "properties": {
           "answer_source": {
             "enum": [
@@ -186,8 +86,14 @@
               "safe_assumption"
             ]
           },
+          "confidence": {
+            "type": "number"
+          },
           "id": {
             "minLength": 1,
+            "type": "string"
+          },
+          "missing_policy": {
             "type": "string"
           },
           "support": {
@@ -212,9 +118,8 @@
       },
       "type": "array"
     },
-    "execution_constraints": {
+    "block_if": {
       "items": {
-        "additionalProperties": false,
         "properties": {
           "answer_source": {
             "enum": [
@@ -238,112 +143,14 @@
               "safe_assumption"
             ]
           },
-          "id": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "support": {
-            "enum": [
-              "explicit",
-              "guessed",
-              "inferred",
-              "recommended"
-            ]
-          },
-          "text": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "text",
-          "category"
-        ],
-        "type": "object"
-      },
-      "type": "array"
-    },
-    "forbidden_actions": {
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "answer_source": {
-            "enum": [
-              "agent",
-              "authorization",
-              "blocked",
-              "human",
-              "human_or_agent",
-              "known",
-              "policy_default"
-            ]
-          },
-          "category": {
-            "enum": [
-              "agent_discoverable",
-              "blocked",
-              "human_askable",
-              "irrelevant",
-              "known",
-              "requires_authorization",
-              "safe_assumption"
-            ]
+          "confidence": {
+            "type": "number"
           },
           "id": {
             "minLength": 1,
             "type": "string"
           },
-          "support": {
-            "enum": [
-              "explicit",
-              "guessed",
-              "inferred",
-              "recommended"
-            ]
-          },
-          "text": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "text",
-          "category"
-        ],
-        "type": "object"
-      },
-      "type": "array"
-    },
-    "stop_conditions": {
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "answer_source": {
-            "enum": [
-              "agent",
-              "authorization",
-              "blocked",
-              "human",
-              "human_or_agent",
-              "known",
-              "policy_default"
-            ]
-          },
-          "category": {
-            "enum": [
-              "agent_discoverable",
-              "blocked",
-              "human_askable",
-              "irrelevant",
-              "known",
-              "requires_authorization",
-              "safe_assumption"
-            ]
-          },
-          "id": {
-            "minLength": 1,
+          "missing_policy": {
             "type": "string"
           },
           "support": {
@@ -377,7 +184,6 @@
     },
     "discover_if_missing": {
       "items": {
-        "additionalProperties": false,
         "properties": {
           "answer_source": {
             "enum": [
@@ -401,8 +207,128 @@
               "safe_assumption"
             ]
           },
+          "confidence": {
+            "type": "number"
+          },
           "id": {
             "minLength": 1,
+            "type": "string"
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "execution_constraints": {
+      "items": {
+        "properties": {
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "forbidden_actions": {
+      "items": {
+        "properties": {
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "missing_policy": {
             "type": "string"
           },
           "support": {
@@ -429,7 +355,6 @@
     },
     "required_slots": {
       "items": {
-        "additionalProperties": false,
         "properties": {
           "answer_source": {
             "enum": [
@@ -453,8 +378,14 @@
               "safe_assumption"
             ]
           },
+          "confidence": {
+            "type": "number"
+          },
           "id": {
             "minLength": 1,
+            "type": "string"
+          },
+          "missing_policy": {
             "type": "string"
           },
           "support": {
@@ -481,7 +412,6 @@
     },
     "safe_defaults": {
       "items": {
-        "additionalProperties": false,
         "properties": {
           "answer_source": {
             "enum": [
@@ -505,8 +435,71 @@
               "safe_assumption"
             ]
           },
+          "confidence": {
+            "type": "number"
+          },
           "id": {
             "minLength": 1,
+            "type": "string"
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "safety_blocks": {
+      "items": {
+        "properties": {
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "missing_policy": {
             "type": "string"
           },
           "support": {
@@ -571,6 +564,63 @@
           "type": "null"
         }
       ]
+    },
+    "stop_conditions": {
+      "items": {
+        "properties": {
+          "answer_source": {
+            "enum": [
+              "agent",
+              "authorization",
+              "blocked",
+              "human",
+              "human_or_agent",
+              "known",
+              "policy_default"
+            ]
+          },
+          "category": {
+            "enum": [
+              "agent_discoverable",
+              "blocked",
+              "human_askable",
+              "irrelevant",
+              "known",
+              "requires_authorization",
+              "safe_assumption"
+            ]
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "missing_policy": {
+            "type": "string"
+          },
+          "support": {
+            "enum": [
+              "explicit",
+              "guessed",
+              "inferred",
+              "recommended"
+            ]
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "category"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     }
   },
   "required": [

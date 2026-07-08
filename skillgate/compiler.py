@@ -93,6 +93,7 @@ def _build_normalized_artifacts(
         safe_defaults=analysis.safe_assumptions,
         requires_authorization=analysis.requires_authorization,
         blocked=analysis.blocked,
+        execution_constraints=analysis.execution_constraints,
         decision_kind=analysis.decision_kind,
         decision_reason=analysis.decision_reason,
         activation_instruction=_activation_instruction(analysis),

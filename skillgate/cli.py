@@ -108,7 +108,9 @@ def _cmd_audit_skill(args: argparse.Namespace) -> None:
         contract = audit_skill_file_with_llm(args.skill_path, llm)
 
         if args.output_path:
-            yaml_str = llm_contract_to_yaml(contract)
+            from .skill_auditor import _contract_to_yaml
+            canonical = contract.to_builtin_format()
+            yaml_str = _contract_to_yaml(canonical)
             Path(args.output_path).write_text(yaml_str, encoding="utf-8")
             print(f"LLM-discovered contract for: {contract.skill_id}")
             print(f"Written to: {args.output_path}")
@@ -211,9 +213,14 @@ def _cmd_compile(args: argparse.Namespace) -> None:
             import yaml as _yaml
             loaded = _yaml.safe_load(skill_path.read_text(encoding="utf-8"))
             if loaded and "skill_id" in loaded:
-                discovered_contract = loaded
-                skill_id = loaded["skill_id"]
-                print(f"Using contract from {skill_path}")
+                try:
+                    from .schema import validate_skill_input_contract
+                    validate_skill_input_contract(loaded)
+                    discovered_contract = loaded
+                    skill_id = loaded["skill_id"]
+                    print(f"Using contract from {skill_path}")
+                except (ValueError, KeyError) as e:
+                    print(f"Warning: {skill_path} is not a valid SkillInputContract: {e}")
         elif skill_path.suffix == ".md":
             input_yaml = skill_path.with_suffix(".input.yaml")
             if not input_yaml.exists():
@@ -223,6 +230,8 @@ def _cmd_compile(args: argparse.Namespace) -> None:
                 try:
                     loaded = _yaml.safe_load(input_yaml.read_text(encoding="utf-8"))
                     if loaded and "skill_id" in loaded:
+                        from .schema import validate_skill_input_contract
+                        validate_skill_input_contract(loaded)
                         discovered_contract = loaded
                         skill_id = loaded["skill_id"]
                         print(f"Using contract from {input_yaml}")

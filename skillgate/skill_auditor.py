@@ -399,26 +399,35 @@ def _infer_skill_name(skill_id: str, skill_path: Path, front_matter: dict[str, A
 
 
 def _contract_to_yaml(contract: dict[str, Any]) -> str:
-    """Serialize a SkillInputContract to human-readable YAML."""
+    """Serialize a SkillInputContract to canonical human-readable YAML.
+
+    Normalizes the contract through :func:`build_skill_input_contract` so the
+    output always matches the canonical schema, even when fed a from-scratch
+    dict (e.g., a ``get_contract_for_skill()`` return value that was not
+    already built through the builder).
+    """
+    normalized = build_skill_input_contract(
+        skill_id=contract.get("skill_id", "unknown"),
+        skill_name=contract.get("skill_name", "Unknown"),
+        skill_version=contract.get("skill_version", "0.0.0"),
+        skill_description=contract.get("skill_description", ""),
+        source_path=contract.get("source_path"),
+        source_sha256=contract.get("source_sha256"),
+        required_slots=contract.get("required_slots", []),
+        ask_if_missing=contract.get("ask_if_missing", []),
+        discover_if_missing=contract.get("discover_if_missing", []),
+        safe_defaults=contract.get("safe_defaults", []),
+        safety_blocks=contract.get("safety_blocks", []),
+        authorization_requirements=contract.get("authorization_requirements", []),
+        execution_constraints=contract.get("execution_constraints", []),
+        forbidden_actions=contract.get("forbidden_actions", []),
+        stop_conditions=contract.get("stop_conditions", []),
+        block_if=contract.get("block_if", []),
+        contract_evidence=contract.get("contract_evidence", []),
+    )
     header = [
         "# SkillGate Input Contract",
         f"# Generated from audit of: {contract.get('source_path', 'unknown')}",
     ]
-    body = yaml.safe_dump(contract, allow_unicode=True, sort_keys=False)
+    body = yaml.safe_dump(normalized, allow_unicode=True, sort_keys=False)
     return "\n".join(header) + "\n" + body
-
-
-def _append_slot_section(lines: list[str], title: str, slots: list[dict[str, Any]]) -> None:
-    if not slots:
-        return
-    lines.append(f"# {title.replace('_', ' ').title()}")
-    lines.append(f"{title}:")
-    for slot in slots:
-        lines.append(f"  - id: {slot['id']}")
-        lines.append(f"    text: {slot['text']}")
-        lines.append(f"    category: {slot['category']}")
-        if slot.get("support"):
-            lines.append(f"    support: {slot['support']}")
-        if slot.get("answer_source"):
-            lines.append(f"    answer_source: {slot['answer_source']}")
-    lines.append("")

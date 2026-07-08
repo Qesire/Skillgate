@@ -204,6 +204,7 @@ def normalized_skill_input_json_schema() -> dict[str, Any]:
             "safe_defaults",
             "requires_authorization",
             "blocked",
+            "execution_constraints",
             "decision_kind",
             "decision_reason",
             "activation_instruction",
@@ -221,6 +222,7 @@ def normalized_skill_input_json_schema() -> dict[str, Any]:
             "safe_defaults": slot_state_array,
             "requires_authorization": slot_state_array,
             "blocked": slot_state_array,
+            "execution_constraints": slot_state_array,
             "decision_kind": {"enum": sorted(DECISION_KINDS)},
             "decision_reason": _nonempty_string(),
             "activation_instruction": _nonempty_string(),
@@ -533,7 +535,6 @@ def _common_definitions() -> dict[str, Any]:
 def _slot_entry_schema() -> dict[str, Any]:
     return {
         "type": "object",
-        "additionalProperties": False,
         "required": ["id", "text", "category"],
         "properties": {
             "id": _nonempty_string(),
@@ -541,6 +542,8 @@ def _slot_entry_schema() -> dict[str, Any]:
             "category": {"enum": sorted(SLOT_STATUSES)},
             "answer_source": {"enum": sorted(ANSWER_SOURCES)},
             "support": {"enum": sorted(SUPPORT_KINDS)},
+            "missing_policy": {"type": "string"},
+            "confidence": {"type": "number"},
         },
     }
 
@@ -565,6 +568,7 @@ def _input_slot_state_schema() -> dict[str, Any]:
             "risk",
             "ambiguity",
             "handling_reason",
+            "confidence",
         ],
         "properties": {
             "schema_version": {"const": INPUT_SLOT_STATE_VERSION},
@@ -582,6 +586,8 @@ def _input_slot_state_schema() -> dict[str, Any]:
             "risk": _nonempty_string(),
             "ambiguity": _nonempty_string(),
             "handling_reason": {"type": "string"},
+            "confidence": _confidence(),
+            "missing_policy": {"type": "string"},
         },
     }
 

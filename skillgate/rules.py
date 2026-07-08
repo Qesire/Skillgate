@@ -55,6 +55,12 @@ class SkillAnalysis:
     requires_authorization: list[dict[str, Any]]
     blocked: list[dict[str, Any]]
 
+    # Execution constraints (always-active, from contract)
+    execution_constraints: list[dict[str, Any]]
+
+    # Low-confidence slots (confidence == 0.0, skipped in decision-making)
+    low_confidence_slots: list[dict[str, Any]]
+
     # Human-facing questions
     questions: list[str]
 
@@ -101,6 +107,9 @@ def analyze_against_skill(
     # copy block_if items to safety_blocks.
     _ensure_modern_contract_sections(contract)
 
+    # Read execution constraints (always-active constraints from the contract)
+    exec_constraints = contract.get("execution_constraints", [])
+
     # 2. Check block conditions (safety_blocks + forbidden_actions + stop_conditions)
     all_block_conditions = (
         contract.get("safety_blocks", [])
@@ -116,6 +125,7 @@ def analyze_against_skill(
             decision_kind="block_unsafe",
             reason=block_reason,
             confidence=0.95,
+            execution_constraints=exec_constraints,
             blocked=[{"id": b["id"], "text": b["text"], "category": "blocked"} for b in all_block_conditions],
         )
 
@@ -193,55 +203,128 @@ def analyze_against_skill(
     requires_authorization = _dedupe_slot_states(requires_authorization)
     blocked_slots = _dedupe_slot_states(blocked_slots)
 
-    # REMOVED: Safe defaults (processed above, before ask_if_missing)
+    # P1-2: missing_policy overrides category-based routing
+    missing_policy_map = {
+        "ask_user": "human_askable",
+        "discover_then_ask": "agent_discoverable",
+        "discover_only": "agent_discoverable",
+        "assume_default": "safe_assumption",
+        "block": "blocked",
+    }
+
+    for slot_list in (human_askable, agent_discoverable, safe_assumptions,
+                       requires_authorization, blocked_slots):
+        for slot in slot_list[:]:
+            policy = slot.get("missing_policy")
+            if not policy or policy not in missing_policy_map:
+                continue
+            target_category = missing_policy_map[policy]
+            slot_list.remove(slot)
+            if policy == "discover_then_ask":
+                slot["_discover_then_ask"] = True
+            if target_category == "human_askable":
+                human_askable.append(slot)
+            elif target_category == "agent_discoverable":
+                agent_discoverable.append(slot)
+            elif target_category == "safe_assumption":
+                safe_assumptions.append(slot)
+            elif target_category == "blocked":
+                blocked_slots.append(slot)
+
+    # P2: Fail-closed evidence verification
+    low_confidence_slots: list[dict[str, Any]] = []
+
+    for slot_list in (blocked_slots, human_askable, requires_authorization,
+                       agent_discoverable, safe_assumptions):
+        for slot in slot_list[:]:
+            if slot.get("confidence") == 0.0:
+                slot_list.remove(slot)
+                low_confidence_slots.append(slot)
+
+    # Re-deduplicate after re-routing
+    human_askable = _dedupe_slot_states(human_askable)
+    agent_discoverable = _dedupe_slot_states(agent_discoverable)
+    safe_assumptions = _dedupe_slot_states(safe_assumptions)
+    requires_authorization = _dedupe_slot_states(requires_authorization)
+    blocked_slots = _dedupe_slot_states(blocked_slots)
+    low_confidence_slots = _dedupe_slot_states(low_confidence_slots)
+
+    low_conf_note = ""
+    if low_confidence_slots:
+        names = [s.get("name", s.get("id", "?")) for s in low_confidence_slots]
+        low_conf_note = f" (low-confidence slots skipped: {', '.join(names)})"
 
     # 4. Make decision — exact §7 ordering
     # §7: block → auth → human_askable → discover → assume → compile
 
     if blocked_slots:
+        reason = "One or more blocking conditions are triggered."
+        if low_conf_note:
+            reason += " " + low_conf_note.strip()
         return _make_decision(
             skill_id, contract, task_kind, "block_unsafe",
-            "One or more blocking conditions are triggered.",
+            reason,
             0.95, blocked=blocked_slots,
+            execution_constraints=exec_constraints,
             safe_assumptions=safe_assumptions,
+            low_confidence_slots=low_confidence_slots,
         )
 
     if requires_authorization:
         questions = _dedupe_texts([s["text"] for s in requires_authorization])
+        reason = "Authorization is required before proceeding."
+        if low_conf_note:
+            reason += " " + low_conf_note.strip()
         return _make_decision(
             skill_id, contract, task_kind, "ask_user",
-            "Authorization is required before proceeding.",
+            reason,
             0.90, requires_authorization=requires_authorization, questions=questions,
+            execution_constraints=exec_constraints,
             safe_assumptions=safe_assumptions,
+            low_confidence_slots=low_confidence_slots,
         )
 
     if human_askable:
         questions = _dedupe_texts([s["text"] for s in human_askable])
+        reason = "Some required inputs need to be provided by the user."
+        if low_conf_note:
+            reason += " " + low_conf_note.strip()
         return _make_decision(
             skill_id, contract, task_kind, "ask_user",
-            "Some required inputs need to be provided by the user.",
+            reason,
             0.85, human_askable=human_askable, questions=questions,
+            execution_constraints=exec_constraints,
             safe_assumptions=safe_assumptions,
+            low_confidence_slots=low_confidence_slots,
         )
 
     if agent_discoverable:
         exploration = [f"Discover: {s['text']}" for s in agent_discoverable]
+        reason = "Important context can be discovered through read-only local inspection."
+        if low_conf_note:
+            reason += " " + low_conf_note.strip()
         return _make_decision(
             skill_id, contract, task_kind, "explore_first",
-            "Important context can be discovered through read-only local inspection.",
+            reason,
             0.84, agent_discoverable=agent_discoverable, readonly_exploration_plan=exploration,
+            execution_constraints=exec_constraints,
             safe_assumptions=safe_assumptions,
+            low_confidence_slots=low_confidence_slots,
         )
 
     if safe_assumptions:
         reason = "Only low-risk gaps remain; conservative assumptions are recorded."
     else:
         reason = "All required inputs are satisfied."
+    if low_conf_note:
+        reason += " " + low_conf_note.strip()
 
     return _make_decision(
         skill_id, contract, task_kind,
         "assume_and_continue" if safe_assumptions else "compile_directly",
         reason, 0.82, safe_assumptions=safe_assumptions,
+        execution_constraints=exec_constraints,
+        low_confidence_slots=low_confidence_slots,
     )
 
 
@@ -291,8 +374,25 @@ def _check_block_conditions(block_if: list[dict[str, Any]], raw_request: str) ->
         # Payment + secret combination (e.g., Stripe with API key)
         if "payment" in text and _contains(lower, ["密钥", "secret", "api key", "credential", "stripe", "付款", "payment"]):
             return "Payment integration with secret usage requires explicit safe sandbox setup."
-    return None
 
+        # Generic fallback: for conditions that don't match any hardcoded pattern,
+        # check if any significant word from the condition text appears in the raw request.
+        # This handles entries like "Fabricating unsupported project claims" by
+        # extracting keywords and checking if any appear in the user's request.
+        condition_words = text.split()
+        significant_words = [w for w in condition_words if len(w) > 2 and w not in
+                             ("the", "and", "for", "are", "not", "with", "that", "this",
+                              "from", "been", "have", "will", "your", "can", "its",
+                              "was", "has", "but", "all", "any", "into", "over",
+                              "some", "such", "than", "then", "when", "just",
+                              "may", "how", "what", "who", "where", "which",
+                              "our", "you", "they", "does")]
+        if significant_words and any(
+            sw in lower for sw in significant_words[:15]
+        ):
+            return f"The request may involve: {condition.get('text', 'condition').strip()}"
+
+    return None
 
 def _ensure_modern_contract_sections(contract: dict[str, Any]) -> None:
     """Backward compat: if old contract only has 'block_if' but no new fields,
@@ -336,6 +436,8 @@ def _evaluate_slot(
     category = _effective_category(slot)
     answer_source = slot.get("answer_source", slot["category"])
     support = slot.get("support", "recommended")
+    missing_policy = slot.get("missing_policy")
+    confidence = slot.get("confidence", 1.0)
 
     # Check if request provides the info
     if _slot_is_filled(slot, raw_request, context):
@@ -347,6 +449,8 @@ def _evaluate_slot(
             answer_source=answer_source,
             support=support,
             handling_reason="Request or context provides this information.",
+            confidence=confidence,
+            missing_policy=missing_policy,
         )
 
     return build_input_slot_state(
@@ -359,6 +463,8 @@ def _evaluate_slot(
         question=text if category in ("human_askable", "requires_authorization") else None,
         assumption=text if category == "safe_assumption" else None,
         handling_reason=f"Slot '{slot_id}' is {category} (support: {support}, answer: {answer_source}).",
+        confidence=confidence,
+        missing_policy=missing_policy,
     )
 
 
@@ -654,6 +760,8 @@ def _build_slot_state(slot: dict[str, Any], raw_request: str, status: str) -> di
         question=slot["text"] if status in ("human_askable", "requires_authorization") else None,
         assumption=slot["text"] if status == "safe_assumption" else None,
         handling_reason=f"Slot '{slot['id']}' → {status}.",
+        confidence=slot.get("confidence", 1.0),
+        missing_policy=slot.get("missing_policy"),
     )
 
 
@@ -737,6 +845,8 @@ def _make_decision(
     safe_assumptions: list[dict[str, Any]] | None = None,
     requires_authorization: list[dict[str, Any]] | None = None,
     blocked: list[dict[str, Any]] | None = None,
+    execution_constraints: list[dict[str, Any]] | None = None,
+    low_confidence_slots: list[dict[str, Any]] | None = None,
     questions: list[str] | None = None,
     readonly_exploration_plan: list[str] | None = None,
 ) -> SkillAnalysis:
@@ -747,6 +857,8 @@ def _make_decision(
     sa = safe_assumptions or []
     ra = requires_authorization or []
     bl = blocked or []
+    ec = execution_constraints or []
+    lc = low_confidence_slots or []
 
     # Build goal from skill description
     goal = contract.get("skill_description", f"Execute {skill_id} task.")
@@ -773,6 +885,8 @@ def _make_decision(
         safe_assumptions=sa,
         requires_authorization=ra,
         blocked=bl,
+        execution_constraints=ec,
+        low_confidence_slots=lc,
         questions=resolved_questions,
         goal=goal,
         assumptions=assumptions,
