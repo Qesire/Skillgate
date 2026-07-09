@@ -302,6 +302,11 @@ def normalize_contract(contract: dict[str, Any]) -> dict[str, Any]:
     This is what makes the generate -> save -> load -> compile loop reliable:
     no matter which producer wrote the file, the consumer always sees one
     shape.
+
+    LENIENT by design: a section that is present but the wrong type (e.g. a
+    string where a list is expected) is coerced to an empty list so legacy
+    migrations don't crash.  Use :func:`validate_strict_contract` for an
+    explicit-contract path that must reject malformed sections.
     """
     if not isinstance(contract, dict):
         raise ValueError("contract must be a dict")
@@ -339,6 +344,43 @@ def normalize_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "block_if": safety_blocks,
         "contract_evidence": _list("contract_evidence"),
     }
+
+
+def validate_strict_contract(contract: dict[str, Any]) -> dict[str, Any]:
+    """Strict load path for explicit .yaml/.yml contract inputs.
+
+    Unlike :func:`normalize_contract` (lenient, for legacy migration), this
+    REJECTS type errors instead of silently emptying them.  A section present
+    as a non-list (e.g. ``required_slots: "foo"``) raises ValueError so the
+    caller (CLI) can fail-closed rather than silently dropping the user's
+    declared slots.
+
+    Returns the normalized v2 contract on success.
+    """
+    _LIST_SECTIONS = (
+        "required_slots", "ask_if_missing", "discover_if_missing",
+        "safe_defaults", "safety_blocks", "block_if",
+        "authorization_requirements", "execution_constraints",
+        "forbidden_actions", "stop_conditions", "contract_evidence",
+    )
+    for section in _LIST_SECTIONS:
+        if section in contract and not isinstance(contract[section], list):
+            raise ValueError(
+                f"SkillInputContract.{section} must be a list, got "
+                f"{type(contract[section]).__name__}"
+            )
+    normalized = normalize_contract(contract)
+    validate_skill_input_contract(normalized)
+    # confidence range check per slot
+    for section in _LIST_SECTIONS:
+        for idx, slot in enumerate(normalized.get(section, [])):
+            conf = slot.get("confidence", 1.0)
+            if not isinstance(conf, (int, float)) or conf < 0 or conf > 1:
+                raise ValueError(f"{section}[{idx}].confidence must be in [0,1]")
+            ans = slot.get("answer_source")
+            if ans is not None and ans not in ANSWER_SOURCES:
+                raise ValueError(f"{section}[{idx}].answer_source invalid: {ans}")
+    return normalized
 
 
 # ═══════════════════════════════════════════════════════════════

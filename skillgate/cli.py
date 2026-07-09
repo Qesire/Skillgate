@@ -213,10 +213,9 @@ def _cmd_compile(args: argparse.Namespace) -> None:
             loaded = _yaml.safe_load(skill_path.read_text(encoding="utf-8"))
             if loaded and "skill_id" in loaded:
                 try:
-                    from .schema import normalize_contract, validate_skill_input_contract
-                    # Migrate v1/legacy -> canonical v2, then validate.
-                    discovered_contract = normalize_contract(loaded)
-                    validate_skill_input_contract(discovered_contract)
+                    from .schema import validate_strict_contract
+                    # Strict: rejects wrong-typed sections, then validates.
+                    discovered_contract = validate_strict_contract(loaded)
                     skill_id = loaded["skill_id"]
                     print(f"Using contract from {skill_path} (normalized to v2)")
                 except (ValueError, KeyError) as e:

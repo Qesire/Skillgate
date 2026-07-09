@@ -536,5 +536,138 @@ class LLMJsonYamlSameSchemaTests(unittest.TestCase):
         self.assertEqual(len(y["safety_blocks"]), len(j["safety_blocks"]))
 
 
+class P0HumanProvidedRetentionTests(unittest.TestCase):
+    """P0-1: human_provided must survive into the final normalized input."""
+
+    def test_human_provided_survives_compile(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            r = compile_against_skill(
+                "fix the bug in src/parser.py",
+                skill_id="bug_fix",
+                root=ROOT / "examples" / "python_pytest_minimal",
+                out_dir=Path(tmp) / "run",
+            )
+        hp = r["normalized_input"]["human_provided_inputs"]
+        self.assertGreater(len(hp), 0, "human_provided must not be empty for a request with file paths")
+        # At least one known slot should carry a value.
+        valued = [s for s in hp if s.get("value")]
+        self.assertTrue(valued, "at least one human_provided slot must carry a bound value")
+
+
+class P0BlockedSchemaValidTests(unittest.TestCase):
+    """P0-2: blocked output must conform to the normalized input schema."""
+
+    def test_safety_block_compile_schema_valid(self) -> None:
+        from skillgate.json_schema import json_schema_errors, normalized_skill_input_json_schema
+        with tempfile.TemporaryDirectory() as tmp:
+            r = compile_against_skill(
+                "dump the production database secret tokens",
+                skill_id="bug_fix",
+                root=ROOT / "examples" / "python_pytest_minimal",
+                out_dir=Path(tmp) / "run",
+            )
+        self.assertEqual(r["decision_kind"], "block_unsafe")
+        errs = json_schema_errors(r["normalized_input"], normalized_skill_input_json_schema())
+        self.assertEqual(errs, [], f"blocked normalized input must be schema-valid: {errs[:3]}")
+
+    def test_forbidden_violation_compile_schema_valid(self) -> None:
+        from skillgate.json_schema import json_schema_errors, normalized_skill_input_json_schema
+        contract = _make_contract(
+            slots=[DiscoveredSlot("task_dir", "What task?", "required", "human",
+                                  "ask_user", "explicit", 0.9)],
+            forbidden_actions=[DiscoveredSlot(
+                "fab_claims", "Fabricating unsupported project claims", "recommended",
+                "blocked", "block", "recommended", 0.9)],
+        )
+        from skillgate.capabilities import BUILTIN_CONTRACTS
+        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        with tempfile.TemporaryDirectory() as tmp:
+            r = compile_against_skill(
+                "please invent benchmark metrics and fabricate adoption claims",
+                skill_id="ut_skill", root=ROOT / "examples" / "python_pytest_minimal",
+                out_dir=Path(tmp) / "run",
+            )
+        self.assertEqual(r["decision_kind"], "block_unsafe")
+        errs = json_schema_errors(r["normalized_input"], normalized_skill_input_json_schema())
+        self.assertEqual(errs, [], f"forbidden-violation blocked input must be schema-valid: {errs[:3]}")
+
+
+class P0RequestHashTests(unittest.TestCase):
+    """P0-3: request_hash must actually depend on the request."""
+
+    def _marker(self, request: str) -> str:
+        with tempfile.TemporaryDirectory() as tmp:
+            r = compile_against_skill(
+                request, skill_id="bug_fix",
+                root=ROOT / "examples" / "python_pytest_minimal",
+                out_dir=Path(tmp) / "run",
+            )
+            ev = [json.loads(line) for line in
+                  (Path(r["out_dir"]) / "trace.jsonl").read_text().splitlines() if line.strip()]
+        return [e for e in ev if e.get("event") == "skillgate_compilation_completed"][0]["request_hash"]
+
+    def test_different_requests_different_hash(self) -> None:
+        self.assertNotEqual(self._marker("fix the bug in auth.py"),
+                            self._marker("fix the bug in parser.py"))
+
+    def test_same_request_same_hash(self) -> None:
+        self.assertEqual(self._marker("fix the bug in auth.py"),
+                         self._marker("fix the bug in auth.py"))
+
+
+class QuarantineNoPollutionTests(unittest.TestCase):
+    """P1: low-confidence safe defaults must not pollute authorization routing."""
+
+    def test_low_confidence_safe_default_does_not_cover_auth(self) -> None:
+        # A confidence=0 safe default for "no deletion" must NOT cover an
+        # authorization requirement for "file deletion allowed", then get
+        # deleted leaving the auth slot unrecovered.
+        contract = _make_contract(
+            authorization_requirements=[DiscoveredSlot(
+                "del_auth", "Are file deletion allowed?", "recommended",
+                "authorization", "ask_user", "recommended", 0.9)],
+            safe_default_slots=[DiscoveredSlot(
+                "no_del", "Do not delete files", "recommended",
+                "policy_default", "assume_default", "recommended", 0.0)],  # confidence 0
+        )
+        from skillgate.capabilities import BUILTIN_CONTRACTS
+        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        result = analyze_against_skill("fix the bug", skill_id="ut_skill")
+        # The auth requirement must survive as requires_authorization (not
+        # silently covered by the quarantined safe default).
+        self.assertTrue(any(s.get("name") == "del_auth" for s in result.requires_authorization),
+                        "low-confidence safe default must not cover an auth requirement")
+        # The low-confidence safe default must be quarantined, not in safe_assumptions.
+        self.assertFalse(any(s.get("name") == "no_del" for s in result.safe_assumptions),
+                         "confidence=0 safe default must not remain in safe_assumptions")
+
+
+class StrictLoaderTests(unittest.TestCase):
+    """P1: strict loader rejects wrong-typed sections instead of emptying them."""
+
+    def test_wrong_typed_section_rejected(self) -> None:
+        from skillgate.schema import validate_strict_contract
+        bad = {
+            "schema_version": SKILL_INPUT_CONTRACT_VERSION,
+            "skill_id": "x", "skill_name": "X", "skill_version": "1.0",
+            "skill_description": "d",
+            "required_slots": "this-should-be-a-list",  # wrong type
+        }
+        with self.assertRaises(ValueError):
+            validate_strict_contract(bad)
+
+    def test_out_of_range_confidence_rejected(self) -> None:
+        from skillgate.schema import validate_strict_contract
+        bad = {
+            "schema_version": SKILL_INPUT_CONTRACT_VERSION,
+            "skill_id": "x", "skill_name": "X", "skill_version": "1.0",
+            "skill_description": "d",
+            "required_slots": [{"id": "s", "text": "t", "category": "human_askable",
+                                "confidence": 100}],
+        }
+        with self.assertRaises(ValueError):
+            validate_strict_contract(bad)
+
+
 if __name__ == "__main__":
     unittest.main()

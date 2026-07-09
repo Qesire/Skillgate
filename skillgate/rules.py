@@ -111,6 +111,36 @@ def analyze_against_skill(
     contract = get_contract_for_skill(skill_id)
     contract = normalize_contract(contract)  # always canonical v2
 
+    # P1: Quarantine low-confidence contract slots BEFORE any decision logic.
+    # A slot with confidence=0.0 or evidence_status=unverified is moved out of
+    # every contract section so it cannot pollute safe-default coverage, block
+    # matching, authorization routing, or stop evaluation.  This prevents the
+    # decision-pollution pattern where a low-confidence safe default covers an
+    # authorization requirement, then gets deleted, leaving the requirement
+    # silently unrecovered.
+    quarantined_contract_slots: list[dict[str, Any]] = []
+
+    def _is_actionable(slot: dict[str, Any]) -> bool:
+        # A slot is quarantined only when its confidence is explicitly zeroed
+        # (the fail-closed signal set by _verify_quotes when evidence cannot be
+        # confirmed).  evidence_status=unverified alone is metadata, not a
+        # hard quarantine — many legitimately-discovered slots have no quote
+        # yet are still actionable at confidence > 0.
+        if slot.get("confidence", 1.0) == 0.0:
+            return False
+        return True
+
+    def _filter_section(name: str) -> list[dict[str, Any]]:
+        section = contract.get(name, [])
+        actionable = [s for s in section if _is_actionable(s)]
+        quarantined_contract_slots.extend(s for s in section if not _is_actionable(s))
+        return actionable
+
+    for sec in ("required_slots", "ask_if_missing", "discover_if_missing",
+                "safe_defaults", "safety_blocks", "authorization_requirements",
+                "execution_constraints", "forbidden_actions", "stop_conditions"):
+        contract[sec] = _filter_section(sec)
+
     # Read execution constraints (always-active constraints from the contract)
     exec_constraints = contract.get("execution_constraints", [])
     forbidden_actions = contract.get("forbidden_actions", [])
@@ -131,7 +161,8 @@ def analyze_against_skill(
             execution_constraints=exec_constraints,
             forbidden_actions=forbidden_actions,
             stop_conditions=stop_conditions,
-            blocked=[{"id": b["id"], "text": b["text"], "category": "blocked"} for b in contract.get("safety_blocks", [])],
+            blocked=[_slot_entry_to_state(b, "blocked") for b in contract.get("safety_blocks", [])],
+            human_provided=[],
         )
 
     # 3. Evaluate slots against the request
@@ -244,7 +275,8 @@ def analyze_against_skill(
         return _make_decision(
             skill_id, contract, task_kind, "block_unsafe",
             forbidden_violation, 0.95,
-            blocked=[{"id": fa["id"], "text": fa["text"], "category": "blocked"} for fa in forbidden_actions],
+            blocked=[_slot_entry_to_state(fa, "blocked") for fa in forbidden_actions],
+            human_provided=human_provided,
             execution_constraints=exec_constraints,
             forbidden_actions=forbidden_actions,
             stop_conditions=stop_conditions,
@@ -262,7 +294,8 @@ def analyze_against_skill(
         return _make_decision(
             skill_id, contract, task_kind, "block_unsafe",
             stop_reason, 0.9,
-            blocked=[{"id": sc["id"], "text": sc["text"], "category": "blocked"} for sc in stop_conditions],
+            blocked=[_slot_entry_to_state(sc, "blocked") for sc in stop_conditions],
+            human_provided=human_provided,
             execution_constraints=exec_constraints,
             forbidden_actions=forbidden_actions,
             stop_conditions=stop_conditions,
@@ -283,6 +316,12 @@ def analyze_against_skill(
             if slot.get("confidence") == 0.0:
                 slot_list.remove(slot)
                 low_confidence_slots.append(slot)
+
+    # Merge the contract-level quarantined slots (filtered out before any
+    # decision logic) into low_confidence_slots so they are still visible in
+    # the analysis output — they just never participated in the decision.
+    for slot in quarantined_contract_slots:
+        low_confidence_slots.append(_slot_entry_to_state(slot, slot.get("category", "blocked")))
 
     # Re-deduplicate after re-routing
     human_askable = _dedupe_slot_states(human_askable)
@@ -308,6 +347,7 @@ def analyze_against_skill(
             skill_id, contract, task_kind, "block_unsafe",
             reason,
             0.95, blocked=blocked_slots,
+            human_provided=human_provided,
             execution_constraints=exec_constraints,
             forbidden_actions=forbidden_actions,
             stop_conditions=stop_conditions,
@@ -324,6 +364,7 @@ def analyze_against_skill(
             skill_id, contract, task_kind, "ask_user",
             reason,
             0.90, requires_authorization=requires_authorization, questions=questions,
+            human_provided=human_provided,
             execution_constraints=exec_constraints,
             forbidden_actions=forbidden_actions,
             stop_conditions=stop_conditions,
@@ -340,6 +381,7 @@ def analyze_against_skill(
             skill_id, contract, task_kind, "ask_user",
             reason,
             0.85, human_askable=human_askable, questions=questions,
+            human_provided=human_provided,
             execution_constraints=exec_constraints,
             forbidden_actions=forbidden_actions,
             stop_conditions=stop_conditions,
@@ -356,6 +398,7 @@ def analyze_against_skill(
             skill_id, contract, task_kind, "explore_first",
             reason,
             0.84, agent_discoverable=agent_discoverable, readonly_exploration_plan=exploration,
+            human_provided=human_provided,
             execution_constraints=exec_constraints,
             forbidden_actions=forbidden_actions,
             stop_conditions=stop_conditions,
@@ -374,6 +417,7 @@ def analyze_against_skill(
         skill_id, contract, task_kind,
         "assume_and_continue" if safe_assumptions else "compile_directly",
         reason, 0.82, safe_assumptions=safe_assumptions,
+        human_provided=human_provided,
         execution_constraints=exec_constraints,
         forbidden_actions=forbidden_actions,
         stop_conditions=stop_conditions,
@@ -1049,6 +1093,27 @@ def _is_covered_by_safe_default(
             return True
 
     return False
+
+
+def _slot_entry_to_state(slot: dict[str, Any], status: str) -> dict[str, Any]:
+    """Wrap a contract slot entry into a full InputSlotState.
+
+    Used for blocked/forbidden/stop branches that build ``blocked`` lists.
+    Produces a schema-valid InputSlotState (not a simplified {id,text,category}
+    dict) so the normalized input passes its own JSON Schema.
+    """
+    return build_input_slot_state(
+        name=slot.get("id", slot.get("name", "")),
+        description=slot.get("text", ""),
+        category=slot.get("category", status),
+        status=status,
+        answer_source=slot.get("answer_source", "blocked" if status == "blocked" else "policy_default"),
+        support=slot.get("support", "recommended"),
+        handling_reason=f"Slot '{slot.get('id','')}' → {status}.",
+        confidence=slot.get("confidence", 1.0),
+        missing_policy=slot.get("missing_policy"),
+        evidence_status=slot.get("evidence_status"),
+    )
 
 
 def _rebuild_state_for_policy(

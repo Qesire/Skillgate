@@ -129,7 +129,7 @@ def _build_normalized_artifacts(
         "normalized_input": normalized_input,
         "normalized_input_markdown": normalized_input_md,
         "decision": decision,
-        "trace": _trace_events(analysis, context),
+        "trace": _trace_events(raw_request, analysis, context),
     }
 
 
@@ -311,7 +311,7 @@ def _expected_output_text(skill_id: str) -> str:
 # ── Trace events ─────────────────────────────────────────────
 
 
-def _trace_events(analysis: SkillAnalysis, context: ContextResult) -> list[dict[str, Any]]:
+def _trace_events(raw_request: str, analysis: SkillAnalysis, context: ContextResult) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = [
         {"event": "skill_selected", "skill_id": analysis.skill_id},
         {"event": "contract_loaded", "schema_version": SKILL_INPUT_CONTRACT_VERSION},
@@ -327,7 +327,10 @@ def _trace_events(analysis: SkillAnalysis, context: ContextResult) -> list[dict[
     # MetaSkill was invoked and produced a NormalizedSkillInput for this exact
     # request+task_root, distinguishing a real SkillGate condition from a
     # curated-skill condition that merely loaded skills.
-    request_hash = hash_text(analysis.skill_contract.get("skill_description", "") + "|" + str(context.root))
+    request_hash = hash_text(json.dumps(
+        {"raw_request": raw_request, "skill_id": analysis.skill_id, "task_root": str(context.root)},
+        sort_keys=True, ensure_ascii=False,
+    ))
     contract_hash = hash_text(json.dumps(analysis.skill_contract, sort_keys=True, ensure_ascii=False))
     events.append({
         "event": "skillgate_compilation_completed",
@@ -476,7 +479,7 @@ def _build_legacy_artifacts(
         "execution_brief_markdown": _build_execution_brief_markdown(
             raw_request, taskbrief),
         "decision": decision,
-        "trace": _trace_events(analysis, context),
+        "trace": _trace_events(raw_request, analysis, context),
     }
 
 
