@@ -142,7 +142,10 @@ def analyze_against_skill(
     requires_authorization: list[dict[str, Any]] = []
     blocked_slots: list[dict[str, Any]] = []
 
-    # Required slots
+    # Required slots — missing_policy is NOT checked here because required
+    # slots are, by definition, required; their category already encodes the
+    # intended handling.  missing_policy only governs the ask_if_missing /
+    # authorization_requirements / discover_if_missing sections.
     for slot in contract["required_slots"]:
         state = _evaluate_slot(slot, raw_request, context, is_required=True)
         _assign_slot(state, human_provided, human_askable, agent_discoverable,
@@ -152,19 +155,38 @@ def analyze_against_skill(
     for slot in contract["safe_defaults"]:
         safe_assumptions.append(_build_slot_state(slot, raw_request, "safe_assumption"))
 
-    # Authorization requirements (separate from ask_if_missing for clarity)
+    # Authorization requirements — missing_policy takes STRICT PRIORITY over
+    # safe-default coverage.  A slot that declares missing_policy=block must
+    # block even if a safe default would have covered it.
     for slot in contract.get("authorization_requirements", []):
+        policy = slot.get("missing_policy")
         if _slot_is_filled(slot, raw_request, context):
             human_provided.append(_build_slot_state(slot, raw_request, "known"))
+        elif policy == "block":
+            blocked_slots.append(_rebuild_state_for_policy(slot, raw_request, "blocked"))
+        elif policy == "assume_default":
+            safe_assumptions.append(_rebuild_state_for_policy(slot, raw_request, "safe_assumption"))
         elif _is_covered_by_safe_default(slot, safe_assumptions):
             safe_assumptions.append(_build_slot_state(slot, raw_request, "safe_assumption"))
         else:
             requires_authorization.append(_build_slot_state(slot, raw_request, "requires_authorization"))
 
-    # Ask-if-missing slots
+    # Ask-if-missing slots — missing_policy takes STRICT PRIORITY over
+    # safe-default coverage.
     for slot in contract["ask_if_missing"]:
+        policy = slot.get("missing_policy")
         if _slot_is_filled(slot, raw_request, context):
             human_provided.append(_build_slot_state(slot, raw_request, "known"))
+        elif policy == "block":
+            blocked_slots.append(_rebuild_state_for_policy(slot, raw_request, "blocked"))
+        elif policy == "assume_default":
+            safe_assumptions.append(_rebuild_state_for_policy(slot, raw_request, "safe_assumption"))
+        elif policy in ("discover_only", "discover_then_ask"):
+            # Both discover policies route to agent_discoverable at compile
+            # time.  discover_then_ask differs only post-discovery (ask the
+            # user if discovery fails), which is a runtime state transition
+            # not representable at compile time.
+            agent_discoverable.append(_rebuild_state_for_policy(slot, raw_request, "agent_discoverable"))
         elif _is_covered_by_safe_default(slot, safe_assumptions):
             # Slot (auth or human-askable) covered by a safe default.
             # For requires_authorization → downgrade to safe_assumption.
@@ -181,8 +203,13 @@ def analyze_against_skill(
 
     # Agent-discoverable slots
     for slot in contract["discover_if_missing"]:
+        policy = slot.get("missing_policy")
         if _slot_is_filled(slot, raw_request, context):
             human_provided.append(_build_slot_state(slot, raw_request, "known"))
+        elif policy == "block":
+            blocked_slots.append(_rebuild_state_for_policy(slot, raw_request, "blocked"))
+        elif policy == "assume_default":
+            safe_assumptions.append(_rebuild_state_for_policy(slot, raw_request, "safe_assumption"))
         else:
             agent_discoverable.append(_build_slot_state(slot, raw_request, "agent_discoverable"))
 
@@ -242,33 +269,10 @@ def analyze_against_skill(
             safe_assumptions=safe_assumptions,
         )
 
-    # P1-2: missing_policy overrides category-based routing
-    missing_policy_map = {
-        "ask_user": "human_askable",
-        "discover_then_ask": "agent_discoverable",
-        "discover_only": "agent_discoverable",
-        "assume_default": "safe_assumption",
-        "block": "blocked",
-    }
-
-    for slot_list in (human_askable, agent_discoverable, safe_assumptions,
-                       requires_authorization, blocked_slots):
-        for slot in slot_list[:]:
-            policy = slot.get("missing_policy")
-            if not policy or policy not in missing_policy_map:
-                continue
-            target_category = missing_policy_map[policy]
-            slot_list.remove(slot)
-            if policy == "discover_then_ask":
-                slot["_discover_then_ask"] = True
-            if target_category == "human_askable":
-                human_askable.append(slot)
-            elif target_category == "agent_discoverable":
-                agent_discoverable.append(slot)
-            elif target_category == "safe_assumption":
-                safe_assumptions.append(slot)
-            elif target_category == "blocked":
-                blocked_slots.append(slot)
+    # missing_policy is now interpreted STRICT-PRIORITY during slot
+    # evaluation above (before safe-default coverage), so there is no
+    # post-hoc rerouting here.  This avoids the state/list inconsistency
+    # where a slot's category/status kept old values after being moved.
 
     # P2: Fail-closed evidence verification
     low_confidence_slots: list[dict[str, Any]] = []
@@ -415,9 +419,20 @@ def _check_safety_blocks(safety_blocks: list[dict[str, Any]], raw_request: str) 
     blocks immediately.  This is the only block category evaluated by
     request-text matching; forbidden_actions and stop_conditions have their
     own semantics.
+
+    Fail-closed on evidence: a safety_block whose ``confidence`` is 0.0 or
+    whose ``evidence_status`` is ``unverified`` is **skipped** — an
+    unverified safety condition must not block execution.  Built-in policy
+    defaults carry no confidence (defaulting to 1.0 / no evidence_status),
+    so they are always active.
     """
     lower = raw_request.lower()
     for condition in safety_blocks:
+        # Fail-closed evidence: skip unverified safety conditions.
+        if condition.get("confidence", 1.0) == 0.0:
+            continue
+        if condition.get("evidence_status") == "unverified":
+            continue
         text = condition.get("text", "").lower()
         cid = condition.get("id", "").lower()
         if ("credential" in text or "secret" in text or "exfiltration" in text
@@ -608,6 +623,31 @@ def _evaluate_slot(
             value_source_span=binding["source_span"],
         )
 
+    # Slot is NOT filled — missing_policy takes strict priority over the
+    # category-based default routing.
+    policy = slot.get("missing_policy")
+    if policy == "block":
+        return build_input_slot_state(
+            name=slot_id, description=text, category="blocked", status="blocked",
+            answer_source=answer_source, support=support,
+            handling_reason=f"Slot '{slot_id}' is blocked by missing_policy.",
+            confidence=confidence, missing_policy=missing_policy,
+        )
+    if policy == "assume_default":
+        return build_input_slot_state(
+            name=slot_id, description=text, category="safe_assumption", status="safe_assumption",
+            answer_source=answer_source, support=support, assumption=text,
+            handling_reason=f"Slot '{slot_id}' assumes default by missing_policy.",
+            confidence=confidence, missing_policy=missing_policy,
+        )
+    if policy in ("discover_only", "discover_then_ask"):
+        return build_input_slot_state(
+            name=slot_id, description=text, category="agent_discoverable", status="agent_discoverable",
+            answer_source=answer_source, support=support,
+            handling_reason=f"Slot '{slot_id}' routed to discovery by missing_policy.",
+            confidence=confidence, missing_policy=missing_policy,
+        )
+    # No overriding policy (or ask_user) — fall back to category-based routing.
     return build_input_slot_state(
         name=slot_id,
         description=text,
@@ -1009,6 +1049,33 @@ def _is_covered_by_safe_default(
             return True
 
     return False
+
+
+def _rebuild_state_for_policy(
+    slot: dict[str, Any], raw_request: str, target_status: str
+) -> dict[str, Any]:
+    """Build a fresh InputSlotState whose category/status/question/assumption
+    are consistent with the missing_policy target.
+
+    Unlike a bare list-move, this rebuilds the internal state so the slot's
+    ``category``, ``status``, ``question`` and ``assumption`` match its new
+    list — avoiding the state/list inconsistency where a slot moved to
+    ``safe_assumptions`` still carried ``category: human_askable``.
+    """
+    return build_input_slot_state(
+        name=slot["id"],
+        description=slot["text"],
+        category=target_status,
+        status=target_status,
+        answer_source=slot.get("answer_source", slot["category"]),
+        support=slot.get("support", "recommended"),
+        question=slot["text"] if target_status in ("human_askable", "requires_authorization") else None,
+        assumption=slot["text"] if target_status == "safe_assumption" else None,
+        handling_reason=f"Slot '{slot['id']}' rerouted by missing_policy → {target_status}.",
+        confidence=slot.get("confidence", 1.0),
+        missing_policy=slot.get("missing_policy"),
+        evidence_status=slot.get("evidence_status"),
+    )
 
 
 def _build_slot_state(slot: dict[str, Any], raw_request: str, status: str) -> dict[str, Any]:

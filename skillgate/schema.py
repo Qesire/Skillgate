@@ -237,6 +237,11 @@ def validate_skill_input_contract(contract: dict[str, Any]) -> None:
     for key in req:
         if key not in contract:
             raise ValueError(f"SkillInputContract missing required key: {key}")
+        # Required metadata must be non-empty strings, not just present.
+        if key in ("skill_id", "skill_name", "skill_version", "skill_description"):
+            val = contract[key]
+            if not isinstance(val, str) or not val.strip():
+                raise ValueError(f"SkillInputContract.{key} must be a non-empty string")
     if contract["schema_version"] not in (SKILL_INPUT_CONTRACT_VERSION, V1_VERSION):
         raise ValueError(f"unexpected schema_version: {contract['schema_version']}")
     for section in [

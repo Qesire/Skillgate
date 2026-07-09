@@ -1,5 +1,5 @@
 {
-  "$id": "urn:skillgate:schema:skill-input-contract:v1",
+  "$id": "urn:skillgate:schema:skill-input-contract:v2",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Reusable pre-activation input contract for a target skill.",
@@ -30,14 +30,29 @@
             ]
           },
           "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
             "type": "number"
+          },
+          "evidence_status": {
+            "enum": [
+              "verified",
+              "partially_verified",
+              "unverified"
+            ]
           },
           "id": {
             "minLength": 1,
             "type": "string"
           },
           "missing_policy": {
-            "type": "string"
+            "enum": [
+              "ask_user",
+              "assume_default",
+              "block",
+              "discover_only",
+              "discover_then_ask"
+            ]
           },
           "support": {
             "enum": [
@@ -87,14 +102,29 @@
             ]
           },
           "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
             "type": "number"
+          },
+          "evidence_status": {
+            "enum": [
+              "verified",
+              "partially_verified",
+              "unverified"
+            ]
           },
           "id": {
             "minLength": 1,
             "type": "string"
           },
           "missing_policy": {
-            "type": "string"
+            "enum": [
+              "ask_user",
+              "assume_default",
+              "block",
+              "discover_only",
+              "discover_then_ask"
+            ]
           },
           "support": {
             "enum": [
@@ -144,14 +174,29 @@
             ]
           },
           "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
             "type": "number"
+          },
+          "evidence_status": {
+            "enum": [
+              "verified",
+              "partially_verified",
+              "unverified"
+            ]
           },
           "id": {
             "minLength": 1,
             "type": "string"
           },
           "missing_policy": {
-            "type": "string"
+            "enum": [
+              "ask_user",
+              "assume_default",
+              "block",
+              "discover_only",
+              "discover_then_ask"
+            ]
           },
           "support": {
             "enum": [
@@ -208,14 +253,29 @@
             ]
           },
           "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
             "type": "number"
+          },
+          "evidence_status": {
+            "enum": [
+              "verified",
+              "partially_verified",
+              "unverified"
+            ]
           },
           "id": {
             "minLength": 1,
             "type": "string"
           },
           "missing_policy": {
-            "type": "string"
+            "enum": [
+              "ask_user",
+              "assume_default",
+              "block",
+              "discover_only",
+              "discover_then_ask"
+            ]
           },
           "support": {
             "enum": [
@@ -265,14 +325,29 @@
             ]
           },
           "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
             "type": "number"
+          },
+          "evidence_status": {
+            "enum": [
+              "verified",
+              "partially_verified",
+              "unverified"
+            ]
           },
           "id": {
             "minLength": 1,
             "type": "string"
           },
           "missing_policy": {
-            "type": "string"
+            "enum": [
+              "ask_user",
+              "assume_default",
+              "block",
+              "discover_only",
+              "discover_then_ask"
+            ]
           },
           "support": {
             "enum": [
@@ -322,14 +397,29 @@
             ]
           },
           "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
             "type": "number"
+          },
+          "evidence_status": {
+            "enum": [
+              "verified",
+              "partially_verified",
+              "unverified"
+            ]
           },
           "id": {
             "minLength": 1,
             "type": "string"
           },
           "missing_policy": {
-            "type": "string"
+            "enum": [
+              "ask_user",
+              "assume_default",
+              "block",
+              "discover_only",
+              "discover_then_ask"
+            ]
           },
           "support": {
             "enum": [
@@ -379,14 +469,29 @@
             ]
           },
           "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
             "type": "number"
+          },
+          "evidence_status": {
+            "enum": [
+              "verified",
+              "partially_verified",
+              "unverified"
+            ]
           },
           "id": {
             "minLength": 1,
             "type": "string"
           },
           "missing_policy": {
-            "type": "string"
+            "enum": [
+              "ask_user",
+              "assume_default",
+              "block",
+              "discover_only",
+              "discover_then_ask"
+            ]
           },
           "support": {
             "enum": [
@@ -436,14 +541,29 @@
             ]
           },
           "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
             "type": "number"
+          },
+          "evidence_status": {
+            "enum": [
+              "verified",
+              "partially_verified",
+              "unverified"
+            ]
           },
           "id": {
             "minLength": 1,
             "type": "string"
           },
           "missing_policy": {
-            "type": "string"
+            "enum": [
+              "ask_user",
+              "assume_default",
+              "block",
+              "discover_only",
+              "discover_then_ask"
+            ]
           },
           "support": {
             "enum": [
@@ -493,14 +613,29 @@
             ]
           },
           "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
             "type": "number"
+          },
+          "evidence_status": {
+            "enum": [
+              "verified",
+              "partially_verified",
+              "unverified"
+            ]
           },
           "id": {
             "minLength": 1,
             "type": "string"
           },
           "missing_policy": {
-            "type": "string"
+            "enum": [
+              "ask_user",
+              "assume_default",
+              "block",
+              "discover_only",
+              "discover_then_ask"
+            ]
           },
           "support": {
             "enum": [
@@ -591,14 +726,29 @@
             ]
           },
           "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
             "type": "number"
+          },
+          "evidence_status": {
+            "enum": [
+              "verified",
+              "partially_verified",
+              "unverified"
+            ]
           },
           "id": {
             "minLength": 1,
             "type": "string"
           },
           "missing_policy": {
-            "type": "string"
+            "enum": [
+              "ask_user",
+              "assume_default",
+              "block",
+              "discover_only",
+              "discover_then_ask"
+            ]
           },
           "support": {
             "enum": [

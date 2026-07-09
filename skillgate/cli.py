@@ -220,7 +220,15 @@ def _cmd_compile(args: argparse.Namespace) -> None:
                     skill_id = loaded["skill_id"]
                     print(f"Using contract from {skill_path} (normalized to v2)")
                 except (ValueError, KeyError) as e:
-                    print(f"Warning: {skill_path} is not a valid SkillInputContract: {e}")
+                    # Fail-closed: an explicit .yaml that is not a valid
+                    # SkillInputContract must NOT silently degrade to a
+                    # natural-language SKILL.md audit.  The user passed a
+                    # contract file; if it is invalid, that is an error.
+                    print(f"Error: {skill_path} is not a valid SkillInputContract: {e}")
+                    raise SystemExit(1)
+            else:
+                print(f"Error: {skill_path} has no 'skill_id' — not a valid SkillInputContract.")
+                raise SystemExit(1)
         elif skill_path.suffix == ".md":
             input_yaml = skill_path.with_suffix(".input.yaml")
             if not input_yaml.exists():

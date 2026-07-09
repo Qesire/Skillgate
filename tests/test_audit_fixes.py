@@ -369,5 +369,172 @@ class CompilationCompletedEventTests(unittest.TestCase):
         self.assertIn("execution_constraints", m["slot_counts"])
 
 
+class SafetyBlockConfidenceFilterTests(unittest.TestCase):
+    """P1-1: unverified safety_blocks must not block."""
+
+    def test_unverified_safety_block_does_not_block(self) -> None:
+        contract = _make_contract(
+            slots=[DiscoveredSlot("task_dir", "What task?", "required", "human",
+                                  "ask_user", "explicit", 0.9)],
+            safety_blocks=[DiscoveredSlot("cred", "Credential exfiltration",
+                                          "recommended", "blocked", "block",
+                                          "guessed", 0.0)],  # confidence=0
+        )
+        from skillgate.capabilities import BUILTIN_CONTRACTS
+        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        # Request mentions "secret" but the safety_block has confidence=0
+        result = analyze_against_skill("dump the secret tokens", skill_id="ut_skill")
+        self.assertNotEqual(result.decision_kind, "block_unsafe",
+                            "unverified safety_block must not block")
+
+
+class MissingPolicyStateRebuildTests(unittest.TestCase):
+    """P1-2: missing_policy reroute must rebuild slot state, not just move it."""
+
+    def test_policy_reroute_rebuilds_slot_state(self) -> None:
+        contract = _make_contract(
+            slots=[DiscoveredSlot("policy_slot", "What value?", "required",
+                                  "human", "assume_default", "explicit", 0.9)],
+        )
+        from skillgate.capabilities import BUILTIN_CONTRACTS
+        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        result = analyze_against_skill("a vague request", skill_id="ut_skill")
+        # The slot should be in safe_assumptions with status=safe_assumption
+        sa = [s for s in result.safe_assumptions if s.get("name") == "policy_slot"]
+        self.assertTrue(sa, "assume_default slot should be in safe_assumptions")
+        self.assertEqual(sa[0]["status"], "safe_assumption",
+                         "state must be rebuilt to safe_assumption")
+        self.assertEqual(sa[0]["category"], "safe_assumption",
+                         "category must be rebuilt to safe_assumption")
+        self.assertIsNone(sa[0].get("question"),
+                          "question must be cleared for safe_assumption")
+
+    def test_discover_then_ask_no_private_field(self) -> None:
+        """The _discover_then_ask private field must not leak into slot states
+        (would break additionalProperties:false in the schema)."""
+        contract = _make_contract(
+            slots=[DiscoveredSlot("d_slot", "Discover what?", "required",
+                                  "human", "discover_then_ask", "explicit", 0.9)],
+        )
+        from skillgate.capabilities import BUILTIN_CONTRACTS
+        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        result = analyze_against_skill("a vague request", skill_id="ut_skill")
+        ad = [s for s in result.agent_discoverable if s.get("name") == "d_slot"]
+        self.assertTrue(ad, "discover_then_ask should route to agent_discoverable")
+        self.assertNotIn("_discover_then_ask", ad[0],
+                         "private field must not leak into slot state")
+
+    def test_missing_policy_block_is_strict_priority(self) -> None:
+        """missing_policy=block must block even when a safe default would cover it."""
+        contract = _make_contract(
+            slots=[DiscoveredSlot("may_mod", "Is modification allowed?", "recommended",
+                                  "human", "block", "explicit", 0.9)],
+            safe_default_slots=[DiscoveredSlot("no_mod", "Do not modify",
+                                               "recommended", "policy_default",
+                                               "assume_default", "recommended", 0.9)],
+        )
+        from skillgate.capabilities import BUILTIN_CONTRACTS
+        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        result = analyze_against_skill("a vague request", skill_id="ut_skill")
+        self.assertEqual(result.decision_kind, "block_unsafe",
+                         "missing_policy=block must take priority over safe-default coverage")
+
+
+class SchemaV2IdTests(unittest.TestCase):
+    """Schema $id must be v2, not v1."""
+
+    def test_schema_id_is_v2(self) -> None:
+        from skillgate.json_schema import skill_input_contract_json_schema
+        schema = skill_input_contract_json_schema()
+        self.assertEqual(schema["$id"], "urn:skillgate:schema:skill-input-contract:v2")
+
+    def test_slot_entry_missing_policy_is_enum(self) -> None:
+        from skillgate.json_schema import skill_input_contract_json_schema
+        schema = skill_input_contract_json_schema()
+        slot_schema = schema["properties"]["required_slots"]["items"]
+        self.assertIn("enum", slot_schema["properties"]["missing_policy"])
+
+    def test_slot_entry_confidence_is_bounded(self) -> None:
+        from skillgate.json_schema import skill_input_contract_json_schema
+        schema = skill_input_contract_json_schema()
+        slot_schema = schema["properties"]["required_slots"]["items"]
+        conf = slot_schema["properties"]["confidence"]
+        self.assertEqual(conf.get("minimum"), 0.0)
+        self.assertEqual(conf.get("maximum"), 1.0)
+
+
+class ExecutionConstraintsRenderTests(unittest.TestCase):
+    """P1-3: execution constraints must appear in the downstream Markdown."""
+
+    def test_execution_constraints_render_to_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            r = compile_against_skill(
+                "fix the bug in auth.py",
+                skill_id="bug_fix",
+                root=ROOT / "examples" / "python_pytest_minimal",
+                out_dir=Path(tmp) / "run",
+            )
+            md = (Path(r["out_dir"]) / "normalized_skill_input.md").read_text()
+        self.assertIn("Execution Constraints", md)
+        # bug_fix has empty forbidden_actions, so that section correctly
+        # doesn't appear; but execution_constraints must always render.
+        self.assertIn("Do not modify test expectations", md)
+
+
+class CLIInvalidContractTests(unittest.TestCase):
+    """P1: explicit .yaml input must fail-closed, not degrade to SKILL.md audit."""
+
+    def test_invalid_contract_yaml_fails_closed(self) -> None:
+        import subprocess, sys
+        with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w", delete=False) as f:
+            f.write("skill_id: broken\nnot_a_real_contract: true\n")
+            f.flush()
+            try:
+                proc = subprocess.run(
+                    [sys.executable, "-m", "skillgate", "compile",
+                     "--skill-file", f.name, "do something"],
+                    capture_output=True, text=True, cwd=str(ROOT),
+                )
+                self.assertNotEqual(proc.returncode, 0,
+                                    "invalid .yaml must exit non-zero")
+                self.assertIn("not a valid SkillInputContract", proc.stderr + proc.stdout)
+            finally:
+                Path(f.name).unlink(missing_ok=True)
+
+
+class LLMConfidenceSurvivesTests(unittest.TestCase):
+    """P1-1: confidence must survive the LLM -> canonical -> runtime chain."""
+
+    def test_llm_confidence_survives_canonical_conversion(self) -> None:
+        contract = _make_contract(
+            slots=[DiscoveredSlot("weak", "What?", "required", "human",
+                                  "ask_user", "guessed", 0.2)],
+        )
+        canonical = contract.to_skill_input_contract()
+        slot = canonical["required_slots"][0]
+        self.assertEqual(slot["confidence"], 0.2,
+                         "confidence must survive canonical conversion")
+        self.assertIn("evidence_status", slot)
+
+
+class LLMJsonYamlSameSchemaTests(unittest.TestCase):
+    """P1-1: --json and --write must output the same schema shape."""
+
+    def test_llm_json_and_yaml_have_same_schema(self) -> None:
+        from skillgate.llm_auditor import contract_to_yaml, contract_to_json
+        contract = _make_contract(
+            slots=[DiscoveredSlot("x", "X?", "required", "human",
+                                  "ask_user", "explicit", 0.9)],
+            safety_blocks=[DiscoveredSlot("c", "Credential exfil", "recommended",
+                                          "blocked", "block", "recommended", 0.9)],
+        )
+        y = yaml.safe_load(contract_to_yaml(contract))
+        j = json.loads(contract_to_json(contract))
+        self.assertEqual(set(y.keys()), set(j.keys()),
+                         "YAML and JSON must have the same keys")
+        self.assertEqual(y["schema_version"], j["schema_version"])
+        self.assertEqual(len(y["safety_blocks"]), len(j["safety_blocks"]))
+
+
 if __name__ == "__main__":
     unittest.main()

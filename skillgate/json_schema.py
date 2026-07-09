@@ -16,6 +16,7 @@ from .schema import CAPABILITY_IDS, DECISION_KINDS, SCHEMA_VERSION, SOURCE_KINDS
 from .schema import (
     ANSWER_SOURCES,
     INPUT_SLOT_STATE_VERSION,
+    MISSING_POLICIES,
     NORMALIZED_SKILL_INPUT_VERSION,
     SKILL_INPUT_CONTRACT_VERSION,
     SLOT_STATUSES,
@@ -123,7 +124,7 @@ def skill_input_contract_json_schema() -> dict[str, Any]:
     slot = _slot_entry_schema()
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "urn:skillgate:schema:skill-input-contract:v1",
+        "$id": "urn:skillgate:schema:skill-input-contract:v2",
         "title": "SkillGate SkillInputContract",
         "description": "Reusable pre-activation input contract for a target skill.",
         "type": "object",
@@ -548,8 +549,9 @@ def _slot_entry_schema() -> dict[str, Any]:
             "category": {"enum": sorted(SLOT_STATUSES)},
             "answer_source": {"enum": sorted(ANSWER_SOURCES)},
             "support": {"enum": sorted(SUPPORT_KINDS)},
-            "missing_policy": {"type": "string"},
-            "confidence": {"type": "number"},
+            "missing_policy": {"enum": sorted(MISSING_POLICIES)},
+            "confidence": _confidence(),
+            "evidence_status": {"enum": ["verified", "partially_verified", "unverified"]},
         },
     }
 
@@ -593,7 +595,7 @@ def _input_slot_state_schema() -> dict[str, Any]:
             "ambiguity": _nonempty_string(),
             "handling_reason": {"type": "string"},
             "confidence": _confidence(),
-            "missing_policy": {"type": "string"},
+            "missing_policy": {"enum": sorted(MISSING_POLICIES)},
             "evidence_status": {"enum": ["verified", "partially_verified", "unverified"]},
             "value_source": {"type": "string"},
             "value_source_span": {

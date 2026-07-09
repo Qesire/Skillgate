@@ -226,6 +226,27 @@ def _activation_instruction(analysis: SkillAnalysis) -> str:
         return "Do not activate the skill. The request cannot be safely executed."
     if analysis.decision_kind == "ask_user":
         return "Do not activate the skill yet. Answer the questions and recompile."
+
+    # Build a concrete constraint summary so the downstream agent sees the
+    # actual execution constraints, not just a generic "follow the rules".
+    constraint_lines: list[str] = []
+    for ec in analysis.execution_constraints:
+        txt = ec.get("text") or ec.get("description") or ec.get("id", "")
+        if txt:
+            constraint_lines.append(f"- {txt}")
+    for fa in analysis.forbidden_actions:
+        txt = fa.get("text") or fa.get("description") or fa.get("id", "")
+        if txt:
+            constraint_lines.append(f"- NEVER: {txt}")
+    for sc in analysis.stop_conditions:
+        txt = sc.get("text") or sc.get("description") or sc.get("id", "")
+        if txt:
+            constraint_lines.append(f"- STOP IF: {txt}")
+
+    constraint_block = ""
+    if constraint_lines:
+        constraint_block = "\nExecution constraints (always active):\n" + "\n".join(constraint_lines)
+
     if analysis.decision_kind == "explore_first":
         return (
             f"Activate the {analysis.skill_id} skill. "
@@ -233,11 +254,13 @@ def _activation_instruction(analysis: SkillAnalysis) -> str:
             "Before editing, discover agent-discoverable slots through read-only inspection. "
             "Keep discovery, edits, and verification inside the configured task root unless the user authorizes another root. "
             "Stop if a required non-discoverable input is missing."
+            + constraint_block
         )
     return (
         f"Activate the {analysis.skill_id} skill with the provided inputs. "
         "Use the normalized SkillGate input as the pre-activation contract; do not execute from the raw request alone. "
         "Follow the skill's execution rules. Report verification results."
+        + constraint_block
     )
 
 

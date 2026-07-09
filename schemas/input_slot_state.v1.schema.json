@@ -72,7 +72,13 @@
       "type": "string"
     },
     "missing_policy": {
-      "type": "string"
+      "enum": [
+        "ask_user",
+        "assume_default",
+        "block",
+        "discover_only",
+        "discover_then_ask"
+      ]
     },
     "name": {
       "minLength": 1,
