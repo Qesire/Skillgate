@@ -1,294 +1,22 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:skillgate:schema:normalized-skill-input:v1",
-  "title": "SkillGate NormalizedSkillInput",
-  "description": "Skill-ready input artifact produced before target skill activation.",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "run_id",
-    "skill_id",
-    "skill_name",
-    "raw_request",
-    "human_provided_inputs",
-    "agent_discoverable_inputs",
-    "safe_defaults",
-    "requires_authorization",
-    "blocked",
-    "execution_constraints",
-    "decision_kind",
-    "decision_reason",
-    "activation_instruction",
-    "expected_output",
-    "evidence"
-  ],
-  "properties": {
-    "schema_version": {
-      "const": "skillgate.normalized_skill_input.v1"
-    },
-    "run_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "skill_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "skill_name": {
-      "type": "string",
-      "minLength": 1
-    },
-    "raw_request": {
-      "type": "string",
-      "minLength": 1
-    },
-    "human_provided_inputs": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/input_slot_state"
-      }
-    },
-    "agent_discoverable_inputs": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/input_slot_state"
-      }
-    },
-    "safe_defaults": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/input_slot_state"
-      }
-    },
-    "requires_authorization": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/input_slot_state"
-      }
-    },
-    "blocked": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/input_slot_state"
-      }
-    },
-    "execution_constraints": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/input_slot_state"
-      }
-    },
-    "decision_kind": {
-      "enum": [
-        "ask_user",
-        "assume_and_continue",
-        "block_unsafe",
-        "compile_directly",
-        "explore_first"
-      ]
-    },
-    "decision_reason": {
-      "type": "string",
-      "minLength": 1
-    },
-    "activation_instruction": {
-      "type": "string",
-      "minLength": 1
-    },
-    "expected_output": {
-      "type": "string"
-    },
-    "evidence": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "$ref": "#/$defs/evidence"
-      }
-    }
-  },
   "$defs": {
-    "input_slot_state": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schema_version",
-        "name",
-        "text",
-        "description",
-        "category",
-        "status",
-        "value",
-        "question",
-        "assumption",
-        "evidence_ids",
-        "answer_source",
-        "support",
-        "risk",
-        "ambiguity",
-        "handling_reason",
-        "confidence"
-      ],
-      "properties": {
-        "schema_version": {
-          "const": "skillgate.input_slot_state.v1"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "text": {
-          "type": "string",
-          "minLength": 1
-        },
-        "description": {
-          "type": "string",
-          "minLength": 1
-        },
-        "category": {
-          "enum": [
-            "agent_discoverable",
-            "blocked",
-            "human_askable",
-            "irrelevant",
-            "known",
-            "requires_authorization",
-            "safe_assumption"
-          ]
-        },
-        "status": {
-          "enum": [
-            "agent_discoverable",
-            "blocked",
-            "human_askable",
-            "irrelevant",
-            "known",
-            "requires_authorization",
-            "safe_assumption"
-          ]
-        },
-        "value": {
-          "oneOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "question": {
-          "oneOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "assumption": {
-          "oneOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "evidence_ids": {
-          "type": "array",
-          "minItems": 0,
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "answer_source": {
-          "enum": [
-            "agent",
-            "authorization",
-            "blocked",
-            "human",
-            "human_or_agent",
-            "known",
-            "policy_default"
-          ]
-        },
-        "support": {
-          "enum": [
-            "explicit",
-            "guessed",
-            "inferred",
-            "recommended"
-          ]
-        },
-        "risk": {
-          "type": "string",
-          "minLength": 1
-        },
-        "ambiguity": {
-          "type": "string",
-          "minLength": 1
-        },
-        "handling_reason": {
-          "type": "string"
-        },
-        "confidence": {
-          "type": "number",
-          "minimum": 0.0,
-          "maximum": 1.0
-        },
-        "missing_policy": {
-          "type": "string"
-        }
-      }
-    },
     "evidence": {
-      "type": "object",
       "additionalProperties": false,
-      "required": [
-        "id",
-        "source_kind",
-        "source_id",
-        "path",
-        "line_start",
-        "line_end",
-        "quote",
-        "quote_hash",
-        "confidence"
-      ],
       "properties": {
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
         "id": {
-          "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "type": "string"
         },
-        "source_kind": {
-          "enum": [
-            "answer",
-            "conversation",
-            "inferred",
-            "policy",
-            "repo_config",
-            "repo_file",
-            "runtime",
-            "skill",
-            "user"
-          ]
-        },
-        "source_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "path": {
+        "line_end": {
           "oneOf": [
             {
-              "type": "string",
-              "minLength": 1
+              "minimum": 1,
+              "type": "integer"
             },
             {
               "type": "null"
@@ -298,19 +26,19 @@
         "line_start": {
           "oneOf": [
             {
-              "type": "integer",
-              "minimum": 1
+              "minimum": 1,
+              "type": "integer"
             },
             {
               "type": "null"
             }
           ]
         },
-        "line_end": {
+        "path": {
           "oneOf": [
             {
-              "type": "integer",
-              "minimum": 1
+              "minLength": 1,
+              "type": "string"
             },
             {
               "type": "null"
@@ -330,20 +58,335 @@
         "quote_hash": {
           "oneOf": [
             {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
             },
             {
               "type": "null"
             }
           ]
         },
-        "confidence": {
-          "type": "number",
-          "minimum": 0.0,
-          "maximum": 1.0
+        "source_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_kind": {
+          "enum": [
+            "answer",
+            "conversation",
+            "inferred",
+            "policy",
+            "repo_config",
+            "repo_file",
+            "runtime",
+            "skill",
+            "user"
+          ]
         }
-      }
+      },
+      "required": [
+        "id",
+        "source_kind",
+        "source_id",
+        "path",
+        "line_start",
+        "line_end",
+        "quote",
+        "quote_hash",
+        "confidence"
+      ],
+      "type": "object"
+    },
+    "input_slot_state": {
+      "additionalProperties": false,
+      "properties": {
+        "ambiguity": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "answer_source": {
+          "enum": [
+            "agent",
+            "authorization",
+            "blocked",
+            "human",
+            "human_or_agent",
+            "known",
+            "policy_default"
+          ]
+        },
+        "assumption": {
+          "oneOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "category": {
+          "enum": [
+            "agent_discoverable",
+            "blocked",
+            "human_askable",
+            "irrelevant",
+            "known",
+            "requires_authorization",
+            "safe_assumption"
+          ]
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "conflict": {
+          "type": "boolean"
+        },
+        "description": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 0,
+          "type": "array"
+        },
+        "evidence_status": {
+          "enum": [
+            "verified",
+            "partially_verified",
+            "unverified"
+          ]
+        },
+        "handling_reason": {
+          "type": "string"
+        },
+        "missing_policy": {
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "question": {
+          "oneOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "risk": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "skillgate.input_slot_state.v1"
+        },
+        "status": {
+          "enum": [
+            "agent_discoverable",
+            "blocked",
+            "human_askable",
+            "irrelevant",
+            "known",
+            "requires_authorization",
+            "safe_assumption"
+          ]
+        },
+        "support": {
+          "enum": [
+            "explicit",
+            "guessed",
+            "inferred",
+            "recommended"
+          ]
+        },
+        "text": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "value": {
+          "oneOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "value_source": {
+          "type": "string"
+        },
+        "value_source_span": {
+          "items": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "name",
+        "text",
+        "description",
+        "category",
+        "status",
+        "value",
+        "question",
+        "assumption",
+        "evidence_ids",
+        "answer_source",
+        "support",
+        "risk",
+        "ambiguity",
+        "handling_reason",
+        "confidence"
+      ],
+      "type": "object"
     }
-  }
+  },
+  "$id": "urn:skillgate:schema:normalized-skill-input:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Skill-ready input artifact produced before target skill activation.",
+  "properties": {
+    "activation_instruction": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "agent_discoverable_inputs": {
+      "items": {
+        "$ref": "#/$defs/input_slot_state"
+      },
+      "type": "array"
+    },
+    "blocked": {
+      "items": {
+        "$ref": "#/$defs/input_slot_state"
+      },
+      "type": "array"
+    },
+    "decision_kind": {
+      "enum": [
+        "ask_user",
+        "assume_and_continue",
+        "block_unsafe",
+        "compile_directly",
+        "explore_first"
+      ]
+    },
+    "decision_reason": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/evidence"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "execution_constraints": {
+      "items": {
+        "$ref": "#/$defs/input_slot_state"
+      },
+      "type": "array"
+    },
+    "expected_output": {
+      "type": "string"
+    },
+    "forbidden_actions": {
+      "items": {
+        "$ref": "#/$defs/input_slot_state"
+      },
+      "type": "array"
+    },
+    "human_provided_inputs": {
+      "items": {
+        "$ref": "#/$defs/input_slot_state"
+      },
+      "type": "array"
+    },
+    "low_confidence_slots": {
+      "items": {
+        "$ref": "#/$defs/input_slot_state"
+      },
+      "type": "array"
+    },
+    "raw_request": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "requires_authorization": {
+      "items": {
+        "$ref": "#/$defs/input_slot_state"
+      },
+      "type": "array"
+    },
+    "run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "safe_defaults": {
+      "items": {
+        "$ref": "#/$defs/input_slot_state"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "skillgate.normalized_skill_input.v1"
+    },
+    "skill_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "skill_name": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "stop_conditions": {
+      "items": {
+        "$ref": "#/$defs/input_slot_state"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "skill_id",
+    "skill_name",
+    "raw_request",
+    "human_provided_inputs",
+    "agent_discoverable_inputs",
+    "safe_defaults",
+    "requires_authorization",
+    "blocked",
+    "execution_constraints",
+    "forbidden_actions",
+    "stop_conditions",
+    "low_confidence_slots",
+    "decision_kind",
+    "decision_reason",
+    "activation_instruction",
+    "expected_output",
+    "evidence"
+  ],
+  "title": "SkillGate NormalizedSkillInput",
+  "type": "object"
 }

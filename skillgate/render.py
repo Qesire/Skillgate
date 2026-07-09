@@ -36,6 +36,9 @@ def render_normalized_skill_input(raw_request: str, analysis: Any, *, task_root:
         safe_assumptions = analysis.safe_assumptions
         requires_authorization = analysis.requires_authorization
         blocked = analysis.blocked
+        execution_constraints = analysis.execution_constraints
+        forbidden_actions = analysis.forbidden_actions
+        stop_conditions = analysis.stop_conditions
         questions = analysis.questions
     else:
         skill_id = analysis.get("skill_id", "unknown")
@@ -48,6 +51,9 @@ def render_normalized_skill_input(raw_request: str, analysis: Any, *, task_root:
         safe_assumptions = analysis.get("safe_assumptions", [])
         requires_authorization = analysis.get("requires_authorization", [])
         blocked = analysis.get("blocked", [])
+        execution_constraints = analysis.get("execution_constraints", [])
+        forbidden_actions = analysis.get("forbidden_actions", [])
+        stop_conditions = analysis.get("stop_conditions", [])
         questions = analysis.get("questions", [])
 
     lines: list[str] = [
@@ -117,6 +123,33 @@ def render_normalized_skill_input(raw_request: str, analysis: Any, *, task_root:
         lines.append("> Execution cannot proceed with these conditions active.")
         lines.append("")
         for slot in blocked:
+            lines.append(f"- {_slot_text(slot)}")
+        lines.append("")
+
+    # ── Execution constraints (always-active) ──
+    if execution_constraints:
+        lines.extend(["## Execution Constraints", ""])
+        lines.append("> Always-active invariants the agent must respect during execution.")
+        lines.append("")
+        for slot in execution_constraints:
+            lines.append(f"- {_slot_text(slot)}")
+        lines.append("")
+
+    # ── Forbidden actions (never do) ──
+    if forbidden_actions:
+        lines.extend(["## Forbidden Actions", ""])
+        lines.append("> The agent must never perform these. Block if the user explicitly requests them.")
+        lines.append("")
+        for slot in forbidden_actions:
+            lines.append(f"- {_slot_text(slot)}")
+        lines.append("")
+
+    # ── Stop conditions ──
+    if stop_conditions:
+        lines.extend(["## Stop Conditions", ""])
+        lines.append("> Halt execution if any of these states become true.")
+        lines.append("")
+        for slot in stop_conditions:
             lines.append(f"- {_slot_text(slot)}")
         lines.append("")
 

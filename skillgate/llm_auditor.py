@@ -32,28 +32,63 @@ class DiscoveredSlot:
     missing_policy: str     # ask_user | discover_then_ask | discover_only | assume_default | block
     support: str            # explicit | inferred | recommended | guessed
     confidence: float       # 0.0 – 1.0
-    evidence: list[dict[str, str]] = field(default_factory=list)  # [{quote, rationale}]
+    evidence: list[dict[str, str]] = field(default_factory=list)  # [{quote, rationale, quote_verified, quote_line_start}]
+    # evidence_status is derived from quote verification; only set on the
+    # canonical slot entries emitted by to_skill_input_contract().
+    evidence_status: str = "unverified"
 
 
 @dataclass
 class DiscoveredContract:
-    """Full contract discovered from a SKILL.md by the LLM auditor."""
+    """Full contract discovered from a SKILL.md by the LLM auditor.
+
+    The five safety categories mirror the canonical ``SkillInputContract`` so
+    that :meth:`to_skill_input_contract` can emit a complete v2 contract with
+    no information loss.  ``block_if``/``safe_defaults`` are backward-compat
+    text views (lists of ``str``) kept for the human-readable printout and the
+    legacy trace summary.
+    """
     version: str = "skill_input_contract.v2"
     skill_id: str = ""
     skill_name: str = ""
+    skill_version: str = "1.0.0"
+    skill_description: str = ""
     activation: dict[str, Any] = field(default_factory=dict)  # {triggers: [...], anti_triggers: [...]}
     slots: list[DiscoveredSlot] = field(default_factory=list)
-    safe_defaults: list[str] = field(default_factory=list)
-    block_if: list[str] = field(default_factory=list)
+    safe_default_slots: list[DiscoveredSlot] = field(default_factory=list)
+    safety_blocks: list[DiscoveredSlot] = field(default_factory=list)
+    authorization_requirements: list[DiscoveredSlot] = field(default_factory=list)
+    execution_constraints: list[DiscoveredSlot] = field(default_factory=list)
+    forbidden_actions: list[DiscoveredSlot] = field(default_factory=list)
+    stop_conditions: list[DiscoveredSlot] = field(default_factory=list)
 
-    def to_builtin_format(self) -> dict[str, Any]:
-        """**Internal converter.**  Transform to canonical ``SkillInputContract``
-        dict (the format returned by :func:`build_skill_input_contract`).
+    # ── backward-compat text views (list[str]) ──────────────
+    @property
+    def safe_defaults(self) -> list[str]:
+        return [s.description for s in self.safe_default_slots]
 
-        Use :meth:`from_llm_output` when you have raw LLM output and want a
-        validated canonical contract in one step.
+    @safe_defaults.setter
+    def safe_defaults(self, value: list[Any]) -> None:
+        self.safe_default_slots = [_coerce_slot(v) for v in value]
+
+    @property
+    def block_if(self) -> list[str]:
+        return [s.description for s in self.safety_blocks]
+
+    @block_if.setter
+    def block_if(self, value: list[Any]) -> None:
+        self.safety_blocks = [_coerce_slot(v) for v in value]
+
+    def to_skill_input_contract(self) -> dict[str, Any]:
+        """Transform to a canonical, complete ``SkillInputContract`` v2 dict.
+
+        This is the ONLY public serialization path.  Every slot — including
+        ``policy_default`` and ``blocked`` — is preserved as a structured
+        entry carrying ``support``, ``answer_source``, ``missing_policy``,
+        ``confidence`` and ``evidence_status``, so nothing is lost on the way
+        to ``SKILL.input.yaml`` and the rules engine can read every field.
         """
-        from .capabilities import _slot as cap_slot
+        from .schema import build_skill_input_contract, EVIDENCE_STATUSES
 
         category_map = {
             "human": "human_askable",
@@ -72,19 +107,25 @@ class DiscoveredContract:
             "blocked": "blocked",
         }
 
-        required = []
-        ask_if_missing = []
-        discover_if_missing = []
-        safe_defaults = []
-        blocked = []
+        required: list[dict[str, Any]] = []
+        ask_if_missing: list[dict[str, Any]] = []
+        discover_if_missing: list[dict[str, Any]] = []
+
+        def _entry(s: DiscoveredSlot, category: str) -> dict[str, Any]:
+            return {
+                "id": s.name,
+                "text": s.description,
+                "category": category,
+                "support": s.support,
+                "answer_source": source_map.get(s.answer_source, s.answer_source),
+                "missing_policy": s.missing_policy,
+                "confidence": round(s.confidence, 4),
+                "evidence_status": s.evidence_status if s.evidence_status in EVIDENCE_STATUSES else "unverified",
+            }
 
         for s in self.slots:
             cat = category_map.get(s.answer_source, "human_askable")
-            src = source_map.get(s.answer_source, "human")
-            entry = cap_slot(s.name, s.description, cat,
-                             support=s.support, answer_source=src,
-                             missing_policy=s.missing_policy)
-
+            entry = _entry(s, cat)
             if s.necessity == "required":
                 required.append(entry)
             elif s.necessity == "recommended":
@@ -92,25 +133,32 @@ class DiscoveredContract:
             else:
                 discover_if_missing.append(entry)
 
-        for text in self.safe_defaults:
-            safe_defaults.append(cap_slot(
-                _text_to_id(text), text, "safe_assumption", support="recommended"))
+        safe_defaults = [_entry(s, "safe_assumption") for s in self.safe_default_slots]
+        safety_blocks = [_entry(s, "blocked") for s in self.safety_blocks]
+        authorization_requirements = [_entry(s, "requires_authorization") for s in self.authorization_requirements]
+        execution_constraints = [_entry(s, "safe_assumption") for s in self.execution_constraints]
+        forbidden_actions = [_entry(s, "blocked") for s in self.forbidden_actions]
+        stop_conditions = [_entry(s, "blocked") for s in self.stop_conditions]
 
-        for text in self.block_if:
-            blocked.append(cap_slot(
-                _text_to_id(text), text, "blocked", support="recommended"))
+        return build_skill_input_contract(
+            skill_id=self.skill_id,
+            skill_name=self.skill_name,
+            skill_version=self.skill_version,
+            skill_description=self.skill_description or self.skill_name,
+            required_slots=required,
+            ask_if_missing=ask_if_missing,
+            discover_if_missing=discover_if_missing,
+            safe_defaults=safe_defaults,
+            safety_blocks=safety_blocks,
+            authorization_requirements=authorization_requirements,
+            execution_constraints=execution_constraints,
+            forbidden_actions=forbidden_actions,
+            stop_conditions=stop_conditions,
+        )
 
-        return {
-            "skill_id": self.skill_id,
-            "skill_name": self.skill_name,
-            "skill_version": "1.0.0",
-            "skill_description": self.skill_name,
-            "required_slots": required,
-            "ask_if_missing": ask_if_missing,
-            "discover_if_missing": discover_if_missing,
-            "safe_defaults": safe_defaults,
-            "block_if": blocked,
-        }
+    # Backward-compat alias for older callers / tests.
+    def to_builtin_format(self) -> dict[str, Any]:
+        return self.to_skill_input_contract()
 
     @classmethod
     def from_llm_output(cls, raw_parsed: dict[str, Any]) -> dict[str, Any]:
@@ -119,55 +167,112 @@ class DiscoveredContract:
         This is the public bridge: feed it the JSON the LLM returned after
         the review stage and get back a validated contract dict suitable for
         ``yaml.safe_dump()`` or direct injection into ``BUILTIN_CONTRACTS``.
-
-        Internally it reconstructs the :class:`DiscoveredContract`, then
-        calls :meth:`to_builtin_format`.
         """
         slots: list[dict[str, Any]] = raw_parsed.get("slots", [])
         if not isinstance(slots, list):
             slots = []
 
-        safe_defaults: list[str] = [
-            s.get("description", s.get("name", ""))
-            for s in slots
-            if s.get("answer_source") == "policy_default"
-        ]
-        block_if: list[str] = [
-            s.get("description", s.get("name", ""))
-            for s in slots
-            if s.get("answer_source") == "blocked"
-        ]
+        contract = _build_discovered_contract_from_slots(slots, raw_parsed)
+        return contract.to_skill_input_contract()
 
-        discovered_slots: list[DiscoveredSlot] = []
-        for raw in slots:
-            if not isinstance(raw, dict):
-                continue
-            ans = raw.get("answer_source", "human")
-            if ans in ("policy_default", "blocked"):
-                continue
-            discovered_slots.append(DiscoveredSlot(
-                name=raw.get("name", "unknown"),
-                description=raw.get("description", ""),
-                necessity=raw.get("necessity", "recommended"),
-                answer_source=ans,
-                missing_policy=raw.get("missing_policy", "ask_user"),
-                support=raw.get("support", "guessed"),
-                confidence=float(raw.get("confidence", 0.5)),
-                evidence=raw.get("evidence", []),
-            ))
 
-        skill_name = raw_parsed.get("skill_name", "")
-        activation = raw_parsed.get("activation", {})
-
-        contract = cls(
-            skill_id=raw_parsed.get("skill_id", ""),
-            skill_name=skill_name,
-            activation=activation,
-            slots=discovered_slots,
-            safe_defaults=safe_defaults,
-            block_if=block_if,
+def _coerce_slot(value: Any) -> DiscoveredSlot:
+    """Coerce a legacy slot representation (str or dict) into a DiscoveredSlot."""
+    if isinstance(value, DiscoveredSlot):
+        return value
+    if isinstance(value, str):
+        return DiscoveredSlot(
+            name=_text_to_id(value),
+            description=value,
+            necessity="recommended",
+            answer_source="policy_default",
+            missing_policy="assume_default",
+            support="recommended",
+            confidence=0.5,
         )
-        return contract.to_builtin_format()
+    if isinstance(value, dict):
+        return DiscoveredSlot(
+            name=value.get("name") or value.get("id", "unknown"),
+            description=value.get("description") or value.get("text", ""),
+            necessity=value.get("necessity", "recommended"),
+            answer_source=value.get("answer_source", "policy_default"),
+            missing_policy=value.get("missing_policy", "assume_default"),
+            support=value.get("support", "recommended"),
+            confidence=float(value.get("confidence", 0.5)),
+            evidence=value.get("evidence", []),
+            evidence_status=value.get("evidence_status", "unverified"),
+        )
+    return DiscoveredSlot(
+        name="unknown", description="", necessity="recommended",
+        answer_source="policy_default", missing_policy="assume_default",
+        support="recommended", confidence=0.5,
+    )
+
+
+def _build_discovered_contract_from_slots(
+    slots: list[dict[str, Any]],
+    raw_parsed: dict[str, Any],
+) -> DiscoveredContract:
+    """Reconstruct a DiscoveredContract from raw LLM slot dicts."""
+    skill_name = raw_parsed.get("skill_name", "")
+    skill_description = raw_parsed.get("skill_description") or skill_name
+
+    normal_slots: list[DiscoveredSlot] = []
+    safe_defaults: list[DiscoveredSlot] = []
+    safety_blocks: list[DiscoveredSlot] = []
+    authorization_requirements: list[DiscoveredSlot] = []
+    execution_constraints: list[DiscoveredSlot] = []
+    forbidden_actions: list[DiscoveredSlot] = []
+    stop_conditions: list[DiscoveredSlot] = []
+
+    for raw in slots:
+        if not isinstance(raw, dict):
+            continue
+        ans = raw.get("answer_source", "human")
+        slot = DiscoveredSlot(
+            name=raw.get("name", "unknown"),
+            description=raw.get("description", ""),
+            necessity=raw.get("necessity", "recommended"),
+            answer_source=ans,
+            missing_policy=raw.get("missing_policy", "ask_user"),
+            support=raw.get("support", "guessed"),
+            confidence=float(raw.get("confidence", 0.5)),
+            evidence=raw.get("evidence", []),
+            evidence_status=raw.get("evidence_status", "unverified"),
+        )
+        if ans == "policy_default":
+            safe_defaults.append(slot)
+        elif ans == "blocked":
+            # Map blocked slots to the right structural bucket when the LLM
+            # tagged the safety class; otherwise default to safety_blocks.
+            safety_class = (raw.get("safety_class") or "").strip().lower()
+            if safety_class == "forbidden_action":
+                forbidden_actions.append(slot)
+            elif safety_class == "stop_condition":
+                stop_conditions.append(slot)
+            elif safety_class == "execution_constraint":
+                execution_constraints.append(slot)
+            else:
+                safety_blocks.append(slot)
+        elif ans == "authorization":
+            authorization_requirements.append(slot)
+        else:
+            normal_slots.append(slot)
+
+    return DiscoveredContract(
+        skill_id=raw_parsed.get("skill_id", ""),
+        skill_name=skill_name,
+        skill_version=raw_parsed.get("skill_version", "1.0.0"),
+        skill_description=skill_description,
+        activation=raw_parsed.get("activation", {}),
+        slots=normal_slots,
+        safe_default_slots=safe_defaults,
+        safety_blocks=safety_blocks,
+        authorization_requirements=authorization_requirements,
+        execution_constraints=execution_constraints,
+        forbidden_actions=forbidden_actions,
+        stop_conditions=stop_conditions,
+    )
 
 
 def _text_to_id(text: str) -> str:
@@ -264,6 +369,13 @@ For each input, determine:
    - "recommended": best-practice default, not from document
 
 4. `confidence`: 0.0 – 1.0
+
+5. `safety_class` (only when answer_source is "blocked" or "authorization"): one of
+   - "safety_block": dangerous request itself (credential/secret access, production mutation, destructive ops)
+   - "forbidden_action": actions the agent must never perform (fabricating claims, introducing deps)
+   - "stop_condition": conditions under which execution must halt (intent unclear, missing critical input)
+   - "execution_constraint": invariants the agent must respect during execution (do not modify tests)
+   - "authorization": action requires explicit user permission before proceeding (delete, push, deploy, payment)
 
 CRITICAL: Do NOT classify as "human" things the agent can read from local files.
 The agent CAN read: file structure, package config, test commands, build config, code, dependencies, conventions, README, CONTRIBUTING, CI config.
@@ -507,32 +619,60 @@ def audit_skill_with_llm_traced(
     })
 
     # ── Build contract ────────────────────────────────────
-    slots = []
-    safe_defaults: list[str] = []
-    block_if: list[str] = []
+    # Route every reviewed slot into the right contract section so that
+    # to_skill_input_contract() emits a complete v2 contract with no loss.
+    # The LLM tags answer_source + (optional) safety_class; we honor both.
+    normal_slots: list[DiscoveredSlot] = []
+    safe_default_slots: list[DiscoveredSlot] = []
+    safety_blocks: list[DiscoveredSlot] = []
+    authorization_slots: list[DiscoveredSlot] = []
+    exec_constraint_slots: list[DiscoveredSlot] = []
+    forbidden_slots: list[DiscoveredSlot] = []
+    stop_condition_slots: list[DiscoveredSlot] = []
+
+    def _make_slot(raw: dict[str, Any]) -> DiscoveredSlot:
+        ev = raw.get("evidence", []) or []
+        # Derive evidence_status from per-evidence quote_verified flags.
+        ev_verified = [e.get("quote_verified") for e in ev if isinstance(e, dict)]
+        if ev and all(ev_verified):
+            evidence_status = "verified"
+        elif ev and any(ev_verified):
+            evidence_status = "partially_verified"
+        else:
+            evidence_status = "unverified"
+        return DiscoveredSlot(
+            name=raw.get("name", "unknown"),
+            description=raw.get("description", ""),
+            necessity=raw.get("necessity", "recommended"),
+            answer_source=raw.get("answer_source", "human"),
+            missing_policy=raw.get("missing_policy", "ask_user"),
+            support=raw.get("support", "guessed"),
+            confidence=float(raw.get("confidence", 0.5)),
+            evidence=ev,
+            evidence_status=evidence_status,
+        )
 
     for raw in reviewed:
         if not isinstance(raw, dict):
             continue
         ans = raw.get("answer_source", "human")
-        if ans in ("policy_default",):
-            # Policy defaults become safe_defaults, not slots
-            safe_defaults.append(raw.get("description", raw.get("name", "")))
-            continue
-        if ans == "blocked":
-            block_if.append(raw.get("description", raw.get("name", "")))
-            continue
-
-        slots.append(DiscoveredSlot(
-            name=raw.get("name", "unknown"),
-            description=raw.get("description", ""),
-            necessity=raw.get("necessity", "recommended"),
-            answer_source=ans,
-            missing_policy=raw.get("missing_policy", "ask_user"),
-            support=raw.get("support", "guessed"),
-            confidence=float(raw.get("confidence", 0.5)),
-            evidence=raw.get("evidence", []),
-        ))
+        slot = _make_slot(raw)
+        if ans == "policy_default":
+            safe_default_slots.append(slot)
+        elif ans == "blocked":
+            safety_class = (raw.get("safety_class") or "").strip().lower()
+            if safety_class == "forbidden_action":
+                forbidden_slots.append(slot)
+            elif safety_class == "stop_condition":
+                stop_condition_slots.append(slot)
+            elif safety_class == "execution_constraint":
+                exec_constraint_slots.append(slot)
+            else:
+                safety_blocks.append(slot)
+        elif ans == "authorization":
+            authorization_slots.append(slot)
+        else:
+            normal_slots.append(slot)
 
     # Extract skill name from doc
     skill_name = _extract_skill_name(skill_content) or skill_id_hint or "unknown_skill"
@@ -547,9 +687,13 @@ def audit_skill_with_llm_traced(
         skill_id=skill_id,
         skill_name=skill_name,
         activation=activation,
-        slots=slots,
-        safe_defaults=safe_defaults,
-        block_if=block_if,
+        slots=normal_slots,
+        safe_default_slots=safe_default_slots,
+        safety_blocks=safety_blocks,
+        authorization_requirements=authorization_slots,
+        execution_constraints=exec_constraint_slots,
+        forbidden_actions=forbidden_slots,
+        stop_conditions=stop_condition_slots,
     )
 
     trace["contract"] = {
@@ -559,6 +703,11 @@ def audit_skill_with_llm_traced(
         "slot_count": len(contract.slots),
         "safe_defaults": contract.safe_defaults,
         "block_if": contract.block_if,
+        "safety_blocks": [s.description for s in contract.safety_blocks],
+        "authorization_requirements": [s.description for s in contract.authorization_requirements],
+        "execution_constraints": [s.description for s in contract.execution_constraints],
+        "forbidden_actions": [s.description for s in contract.forbidden_actions],
+        "stop_conditions": [s.description for s in contract.stop_conditions],
         "slots": [
             {
                 "name": s.name,
@@ -568,6 +717,7 @@ def audit_skill_with_llm_traced(
                 "missing_policy": s.missing_policy,
                 "support": s.support,
                 "confidence": round(s.confidence, 2),
+                "evidence_status": s.evidence_status,
                 "evidence": s.evidence,
             }
             for s in contract.slots
@@ -614,20 +764,33 @@ def audit_skill_file_with_llm(
 
     contract = audit_skill_with_llm(content, llm, skill_id_hint=skill_id_hint)
 
-    # Final deterministic verification of evidence quotes against the source file.
-    raw_slots: list[dict] = []
-    for s in contract.slots:
-        raw_slots.append({
-            "name": s.name,
-            "evidence": list(s.evidence),
-            "confidence": s.confidence,
-        })
-    verified = _verify_quotes(raw_slots, content)
-    for slot, vs in zip(contract.slots, verified):
-        slot.confidence = float(vs.get("confidence", slot.confidence))
-        for ev, vev in zip(slot.evidence, vs.get("evidence", [])):
-            ev["quote_verified"] = vev.get("quote_verified", False)
-            ev["quote_line_start"] = vev.get("quote_line_start")
+    # Final deterministic verification of evidence quotes against the source
+    # file, applied to EVERY slot section (not just normal slots).  Safety
+    # slots need an intact evidence chain the most, so verify them too.
+    all_sections = [
+        contract.slots, contract.safe_default_slots, contract.safety_blocks,
+        contract.authorization_requirements, contract.execution_constraints,
+        contract.forbidden_actions, contract.stop_conditions,
+    ]
+    for section in all_sections:
+        raw_slots: list[dict] = [
+            {"name": s.name, "evidence": list(s.evidence), "confidence": s.confidence}
+            for s in section
+        ]
+        verified = _verify_quotes(raw_slots, content)
+        for slot, vs in zip(section, verified):
+            slot.confidence = float(vs.get("confidence", slot.confidence))
+            # Recompute evidence_status from the verified flags.
+            ev_flags = [e.get("quote_verified") for e in slot.evidence if isinstance(e, dict)]
+            if slot.evidence and all(ev_flags):
+                slot.evidence_status = "verified"
+            elif slot.evidence and any(ev_flags):
+                slot.evidence_status = "partially_verified"
+            else:
+                slot.evidence_status = "unverified"
+            for ev, vev in zip(slot.evidence, vs.get("evidence", [])):
+                ev["quote_verified"] = vev.get("quote_verified", False)
+                ev["quote_line_start"] = vev.get("quote_line_start")
 
     return contract
 
@@ -719,56 +882,28 @@ def _name_to_id(name: str) -> str:
     return name.lower().replace(" ", "_").replace("-", "_")
 
 
-# ── YAML output ──────────────────────────────────────────────
+# ── YAML / JSON output ───────────────────────────────────────
 
 
 def contract_to_yaml(contract: DiscoveredContract) -> str:
-    """Serialize a DiscoveredContract to human-readable YAML."""
+    """Serialize a DiscoveredContract to canonical ``SkillInputContract`` YAML.
+
+    The output is the v2 contract produced by :meth:`to_skill_input_contract`,
+    i.e. exactly what ``compile --skill-file`` will load back.  This keeps the
+    ``audit-skill --write SKILL.input.yaml`` → ``compile --skill-file`` loop a
+    faithful roundtrip with a single canonical format.
+    """
     import yaml
 
-    data: dict[str, Any] = {
-        "version": contract.version,
-        "skill_id": contract.skill_id,
-        "skill_name": contract.skill_name,
-        "activation": contract.activation,
-        "slots": [],
-        "safe_defaults": contract.safe_defaults,
-        "block_if": contract.block_if,
-    }
-    for s in contract.slots:
-        data["slots"].append({
-            "name": s.name,
-            "description": s.description,
-            "necessity": s.necessity,
-            "answer_source": s.answer_source,
-            "missing_policy": s.missing_policy,
-            "support": s.support,
-            "confidence": round(s.confidence, 2),
-            "evidence": s.evidence,
-        })
-    return yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    canonical = contract.to_skill_input_contract()
+    from .schema import validate_skill_input_contract
+    validate_skill_input_contract(canonical)
+    return yaml.dump(canonical, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
 
 def contract_to_json(contract: DiscoveredContract) -> str:
-    """Serialize a DiscoveredContract to JSON."""
-    data: dict[str, Any] = {
-        "version": contract.version,
-        "skill_id": contract.skill_id,
-        "skill_name": contract.skill_name,
-        "activation": contract.activation,
-        "slots": [],
-        "safe_defaults": contract.safe_defaults,
-        "block_if": contract.block_if,
-    }
-    for s in contract.slots:
-        data["slots"].append({
-            "name": s.name,
-            "description": s.description,
-            "necessity": s.necessity,
-            "answer_source": s.answer_source,
-            "missing_policy": s.missing_policy,
-            "support": s.support,
-            "confidence": round(s.confidence, 2),
-            "evidence": s.evidence,
-        })
-    return json.dumps(data, indent=2, ensure_ascii=False)
+    """Serialize a DiscoveredContract to canonical ``SkillInputContract`` JSON."""
+    canonical = contract.to_skill_input_contract()
+    from .schema import validate_skill_input_contract
+    validate_skill_input_contract(canonical)
+    return json.dumps(canonical, indent=2, ensure_ascii=False)

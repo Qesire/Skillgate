@@ -108,9 +108,8 @@ def _cmd_audit_skill(args: argparse.Namespace) -> None:
         contract = audit_skill_file_with_llm(args.skill_path, llm)
 
         if args.output_path:
-            from .skill_auditor import _contract_to_yaml
-            canonical = contract.to_builtin_format()
-            yaml_str = _contract_to_yaml(canonical)
+            from .llm_auditor import contract_to_yaml as llm_contract_to_yaml
+            yaml_str = llm_contract_to_yaml(contract)
             Path(args.output_path).write_text(yaml_str, encoding="utf-8")
             print(f"LLM-discovered contract for: {contract.skill_id}")
             print(f"Written to: {args.output_path}")
@@ -214,11 +213,12 @@ def _cmd_compile(args: argparse.Namespace) -> None:
             loaded = _yaml.safe_load(skill_path.read_text(encoding="utf-8"))
             if loaded and "skill_id" in loaded:
                 try:
-                    from .schema import validate_skill_input_contract
-                    validate_skill_input_contract(loaded)
-                    discovered_contract = loaded
+                    from .schema import normalize_contract, validate_skill_input_contract
+                    # Migrate v1/legacy -> canonical v2, then validate.
+                    discovered_contract = normalize_contract(loaded)
+                    validate_skill_input_contract(discovered_contract)
                     skill_id = loaded["skill_id"]
-                    print(f"Using contract from {skill_path}")
+                    print(f"Using contract from {skill_path} (normalized to v2)")
                 except (ValueError, KeyError) as e:
                     print(f"Warning: {skill_path} is not a valid SkillInputContract: {e}")
         elif skill_path.suffix == ".md":
@@ -230,13 +230,13 @@ def _cmd_compile(args: argparse.Namespace) -> None:
                 try:
                     loaded = _yaml.safe_load(input_yaml.read_text(encoding="utf-8"))
                     if loaded and "skill_id" in loaded:
-                        from .schema import validate_skill_input_contract
-                        validate_skill_input_contract(loaded)
-                        discovered_contract = loaded
+                        from .schema import normalize_contract, validate_skill_input_contract
+                        discovered_contract = normalize_contract(loaded)
+                        validate_skill_input_contract(discovered_contract)
                         skill_id = loaded["skill_id"]
-                        print(f"Using contract from {input_yaml}")
-                except Exception:
-                    pass  # fall through to rules-based audit
+                        print(f"Using contract from {input_yaml} (normalized to v2)")
+                except Exception as e:
+                    print(f"Warning: {input_yaml} is not a valid SkillInputContract: {e}")
 
         # Priority 2: --infer-contract → LLM audit
         if skill_id is None and args.infer_contract:

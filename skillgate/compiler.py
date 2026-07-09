@@ -20,6 +20,7 @@ from .rules import SkillAnalysis, analyze_against_skill, analyze_request
 from .schema import (
     NORMALIZED_SKILL_INPUT_VERSION,
     SKILL_INPUT_CONTRACT_VERSION,
+    build_input_slot_state,
     build_normalized_skill_input,
     evidence,
     hash_text,
@@ -83,6 +84,13 @@ def _build_normalized_artifacts(
     evidence_items = _build_evidence(raw_request, analysis.skill_id, context)
     evidence_ids = {item["id"] for item in evidence_items}
 
+    # Wrap always-active contract constraints (which are slot entries, not
+    # evaluated slot states) into InputSlotState form so the normalized input
+    # is internally consistent and schema-valid.
+    ec_states = [_constraint_to_slot_state(s, "safe_assumption") for s in analysis.execution_constraints]
+    fa_states = [_constraint_to_slot_state(s, "blocked") for s in analysis.forbidden_actions]
+    sc_states = [_constraint_to_slot_state(s, "blocked") for s in analysis.stop_conditions]
+
     normalized_input = build_normalized_skill_input(
         run_id=run_id,
         skill_id=analysis.skill_id,
@@ -93,7 +101,10 @@ def _build_normalized_artifacts(
         safe_defaults=analysis.safe_assumptions,
         requires_authorization=analysis.requires_authorization,
         blocked=analysis.blocked,
-        execution_constraints=analysis.execution_constraints,
+        execution_constraints=ec_states,
+        forbidden_actions=fa_states,
+        stop_conditions=sc_states,
+        low_confidence_slots=analysis.low_confidence_slots,
         decision_kind=analysis.decision_kind,
         decision_reason=analysis.decision_reason,
         activation_instruction=_activation_instruction(analysis),
@@ -138,6 +149,29 @@ def _write_normalized_artifacts(out_dir: Path, artifacts: dict[str, Any]) -> Non
 
 def _write_json(path: Path, value: dict[str, Any] | list[Any]) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _constraint_to_slot_state(slot: dict[str, Any], status: str) -> dict[str, Any]:
+    """Wrap a contract constraint slot entry into InputSlotState form.
+
+    execution_constraints / forbidden_actions / stop_conditions in the
+    contract are slot entries ({id, text, category, ...}), but the
+    NormalizedSkillInput schema requires InputSlotState objects.  This wraps
+    them so the constraints propagate downstream in a schema-valid shape while
+    preserving id/text/support/confidence and any evidence_status.
+    """
+    return build_input_slot_state(
+        name=slot.get("id", slot.get("name", "")),
+        description=slot.get("text", ""),
+        category=slot.get("category", status),
+        status=status,
+        answer_source=slot.get("answer_source", "policy_default"),
+        support=slot.get("support", "recommended"),
+        handling_reason=f"Always-active {status} constraint from contract.",
+        confidence=slot.get("confidence", 1.0),
+        missing_policy=slot.get("missing_policy"),
+        evidence_status=slot.get("evidence_status"),
+    )
 
 
 # ── Evidence construction ────────────────────────────────────
@@ -264,6 +298,35 @@ def _trace_events(analysis: SkillAnalysis, context: ContextResult) -> list[dict[
             {"event": "context_file_found", "path": file.path, "read": file.read, "redacted": file.redacted}
         )
     events.append({"event": "decision", "kind": analysis.decision_kind, "reason": analysis.decision_reason})
+
+    # P0: explicit, verifiable marker that SkillGate's contract compilation
+    # actually ran.  Carries hashes so an experiment collector can prove the
+    # MetaSkill was invoked and produced a NormalizedSkillInput for this exact
+    # request+task_root, distinguishing a real SkillGate condition from a
+    # curated-skill condition that merely loaded skills.
+    request_hash = hash_text(analysis.skill_contract.get("skill_description", "") + "|" + str(context.root))
+    contract_hash = hash_text(json.dumps(analysis.skill_contract, sort_keys=True, ensure_ascii=False))
+    events.append({
+        "event": "skillgate_compilation_completed",
+        "skill_id": analysis.skill_id,
+        "decision": analysis.decision_kind,
+        "contract_hash": contract_hash[:16],
+        "request_hash": request_hash[:16],
+        "task_root_hash": hash_text(str(context.root))[:16],
+        "schema_version": SKILL_INPUT_CONTRACT_VERSION,
+        "slot_counts": {
+            "human_provided": len(analysis.human_provided),
+            "human_askable": len(analysis.human_askable),
+            "agent_discoverable": len(analysis.agent_discoverable),
+            "safe_assumptions": len(analysis.safe_assumptions),
+            "requires_authorization": len(analysis.requires_authorization),
+            "blocked": len(analysis.blocked),
+            "execution_constraints": len(analysis.execution_constraints),
+            "forbidden_actions": len(analysis.forbidden_actions),
+            "stop_conditions": len(analysis.stop_conditions),
+            "low_confidence_slots": len(analysis.low_confidence_slots),
+        },
+    })
     return events
 
 
@@ -357,14 +420,14 @@ def _build_legacy_artifacts(
         "goal": statement(analysis.goal, ["ev_user_request"]),
         "scope_in": [statement(s.get("text") or s.get("description", ""), ["ev_skill_contract"])
                        for s in analysis.safe_assumptions],
-        "scope_out": [statement(f, ["ev_policy_defaults"]) for f in analysis.forbidden_actions],
+        "scope_out": [statement(f, ["ev_policy_defaults"]) for f in analysis.forbidden_actions_legacy],
         "known_facts": [statement(raw_request, ["ev_user_request"])]
                        + [statement(fact, [f"ev_repo_fact_{i:03d}"])
                           for i, (_, fact) in enumerate(context.facts(), start=1)],
         "assumptions": [statement(a, ["ev_skill_contract"]) for a in analysis.assumptions],
         "unresolved_unknowns": [statement(u, ["ev_skill_contract"]) for u in analysis.unresolved_unknowns],
         "execution_policy": [],
-        "forbidden_actions": [statement(f, ["ev_policy_defaults"]) for f in analysis.forbidden_actions],
+        "forbidden_actions": [statement(f, ["ev_policy_defaults"]) for f in analysis.forbidden_actions_legacy],
         "verification_policy": [statement(v, ["ev_skill_contract"]) for v in analysis.verification_policy],
         "stop_conditions": [],
         "output_contract": [],

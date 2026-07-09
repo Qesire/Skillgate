@@ -252,6 +252,23 @@ def validate_skill_input_contract(contract: dict[str, Any]) -> None:
             _validate_slot_entry(item, f"{section}[{idx}]")
 
 
+# Evidence-status taxonomy for fail-closed evidence verification.
+# A slot's evidence is only considered actionable when verified.
+EVIDENCE_STATUSES = {
+    "verified",            # every evidence quote confirmed against source
+    "partially_verified",  # some quotes verified, others not
+    "unverified",          # no quotes verified (or no evidence at all)
+}
+
+MISSING_POLICIES = {
+    "ask_user",
+    "discover_then_ask",
+    "discover_only",
+    "assume_default",
+    "block",
+}
+
+
 def _validate_slot_entry(item: dict[str, Any], field: str) -> None:
     for key in ["id", "text", "category"]:
         if key not in item:
@@ -261,6 +278,62 @@ def _validate_slot_entry(item: dict[str, Any], field: str) -> None:
     support = item.get("support")
     if support and support not in SUPPORT_KINDS:
         raise ValueError(f"{field}.support invalid: {support}")
+    policy = item.get("missing_policy")
+    if policy is not None and policy not in MISSING_POLICIES:
+        raise ValueError(f"{field}.missing_policy invalid: {policy}")
+    ev_status = item.get("evidence_status")
+    if ev_status is not None and ev_status not in EVIDENCE_STATUSES:
+        raise ValueError(f"{field}.evidence_status invalid: {ev_status}")
+
+
+def normalize_contract(contract: dict[str, Any]) -> dict[str, Any]:
+    """Normalize an arbitrary contract dict into a canonical v2 contract.
+
+    Single entry point used everywhere a contract is loaded (CLI, compiler,
+    LLM roundtrip).  It accepts v1 or v2 dicts, legacy ``block_if``-only
+    contracts, and partial dicts, then returns a fully-populated v2 contract
+    with every section present as a list and ``schema_version`` set to v2.
+
+    This is what makes the generate -> save -> load -> compile loop reliable:
+    no matter which producer wrote the file, the consumer always sees one
+    shape.
+    """
+    if not isinstance(contract, dict):
+        raise ValueError("contract must be a dict")
+
+    version = contract.get("schema_version")
+    if version == V1_VERSION:
+        contract = migrate_contract_v1_to_v2(contract)
+    elif version not in (SKILL_INPUT_CONTRACT_VERSION, V1_VERSION, None):
+        raise ValueError(f"unexpected schema_version: {version}")
+
+    def _list(name: str) -> list[dict[str, Any]]:
+        v = contract.get(name, [])
+        return list(v) if isinstance(v, list) else []
+
+    block_if = _list("block_if")
+    safety_blocks = _list("safety_blocks") or block_if
+
+    return {
+        "schema_version": SKILL_INPUT_CONTRACT_VERSION,
+        "skill_id": contract.get("skill_id", "unknown_skill"),
+        "skill_name": contract.get("skill_name", "Unknown Skill"),
+        "skill_version": contract.get("skill_version", "0.0.0"),
+        "skill_description": contract.get("skill_description", ""),
+        "source_path": contract.get("source_path"),
+        "source_sha256": contract.get("source_sha256"),
+        "required_slots": _list("required_slots"),
+        "ask_if_missing": _list("ask_if_missing"),
+        "discover_if_missing": _list("discover_if_missing"),
+        "safe_defaults": _list("safe_defaults"),
+        "safety_blocks": safety_blocks,
+        "authorization_requirements": _list("authorization_requirements"),
+        "execution_constraints": _list("execution_constraints"),
+        "forbidden_actions": _list("forbidden_actions"),
+        "stop_conditions": _list("stop_conditions"),
+        "block_if": safety_blocks,
+        "contract_evidence": _list("contract_evidence"),
+    }
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -285,6 +358,10 @@ def build_input_slot_state(
     handling_reason: str = "",
     confidence: float = 1.0,
     missing_policy: str | None = None,
+    evidence_status: str | None = None,
+    value_source: str | None = None,
+    value_source_span: list[int] | None = None,
+    conflict: bool = False,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "schema_version": INPUT_SLOT_STATE_VERSION,
@@ -306,6 +383,14 @@ def build_input_slot_state(
     }
     if missing_policy is not None:
         result["missing_policy"] = missing_policy
+    if evidence_status is not None:
+        result["evidence_status"] = evidence_status
+    if value_source is not None:
+        result["value_source"] = value_source
+    if value_source_span is not None:
+        result["value_source_span"] = value_source_span
+    if conflict:
+        result["conflict"] = True
     return result
 
 
@@ -331,6 +416,9 @@ def build_normalized_skill_input(
     activation_instruction: str,
     expected_output: str = "",
     evidence_items: list[dict[str, Any]],
+    forbidden_actions: list[dict[str, Any]] | None = None,
+    stop_conditions: list[dict[str, Any]] | None = None,
+    low_confidence_slots: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     return {
         "schema_version": NORMALIZED_SKILL_INPUT_VERSION,
@@ -344,6 +432,9 @@ def build_normalized_skill_input(
         "requires_authorization": requires_authorization,
         "blocked": blocked,
         "execution_constraints": execution_constraints,
+        "forbidden_actions": forbidden_actions or [],
+        "stop_conditions": stop_conditions or [],
+        "low_confidence_slots": low_confidence_slots or [],
         "decision_kind": decision_kind,
         "decision_reason": decision_reason,
         "activation_instruction": activation_instruction,

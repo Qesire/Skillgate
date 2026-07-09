@@ -7,9 +7,19 @@ SkillGate is a metaskill/plugin-style layer to run before a task-specific skill.
 ## Core Flow
 
 ```
-Target SKILL.md -> SkillGate -> SKILL.input.yaml
+Target SKILL.md -> SkillGate -> SKILL.input.yaml   (canonical SkillInputContract v2)
 User request + SKILL.input.yaml -> SkillGate -> NormalizedSkillInput
 ```
+
+There is **one** canonical contract format. The LLM auditor, the rules-based
+auditor, and the CLI all read/write the same `SkillInputContract` v2 shape.
+On load, every contract is passed through `normalize_contract()` which
+migrates v1/legacy/partial dicts to canonical v2, then validates — so the
+`audit-skill --write` → `compile --skill-file` loop is a faithful roundtrip.
+
+Every compilation emits a `skillgate_compilation_completed` event in
+`trace.jsonl` carrying `contract_hash`, `request_hash`, `task_root_hash`,
+and `decision`, so an experiment collector can verify SkillGate actually ran.
 
 SkillGate separates:
 
@@ -18,6 +28,20 @@ SkillGate separates:
 - `safe_assumption`: conservative defaults such as no file deletion
 - `requires_authorization`: actions that need explicit permission
 - `blocked`: unsafe requests that should not proceed
+
+### Five constraint classes (v2 contract)
+
+A `SkillInputContract` v2 distinguishes five constraint types with **distinct runtime semantics** — they are not all folded into one `block_if`:
+
+| Class | Runtime semantic |
+|---|---|
+| `safety_blocks` | A dangerous *request* blocks immediately (credential access, production mutation). Evaluated by request-text match. |
+| `authorization_requirements` | The action requires explicit user permission; routes to `ask_user` before proceeding. |
+| `execution_constraints` | Always-active invariants propagated into the `NormalizedSkillInput` (e.g. "do not modify tests"). Never block by themselves. |
+| `forbidden_actions` | Always propagated downstream. Block **only** if the user explicitly requests the forbidden action — not on a mere keyword mention. |
+| `stop_conditions` | Evaluated against *slot state* (not keyword search): halt if a critical required slot is unanswerable and the request has no recoverable signal. |
+
+Each slot also carries `missing_policy` (`ask_user` / `discover_then_ask` / `discover_only` / `assume_default` / `block`), which controls routing when a slot is unfilled, and an `evidence_status` (`verified` / `partially_verified` / `unverified`). Unverified safety/authorization slots are **fail-closed**: they are extracted to `low_confidence_slots` and never control execution.
 
 ## Install
 

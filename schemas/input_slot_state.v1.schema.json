@@ -1,10 +1,148 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:skillgate:schema:input-slot-state:v1",
-  "title": "SkillGate InputSlotState",
-  "description": "Evaluation state for one target-skill input slot.",
-  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Evaluation state for one target-skill input slot.",
+  "properties": {
+    "ambiguity": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "answer_source": {
+      "enum": [
+        "agent",
+        "authorization",
+        "blocked",
+        "human",
+        "human_or_agent",
+        "known",
+        "policy_default"
+      ]
+    },
+    "assumption": {
+      "oneOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "category": {
+      "enum": [
+        "agent_discoverable",
+        "blocked",
+        "human_askable",
+        "irrelevant",
+        "known",
+        "requires_authorization",
+        "safe_assumption"
+      ]
+    },
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "type": "number"
+    },
+    "conflict": {
+      "type": "boolean"
+    },
+    "description": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 0,
+      "type": "array"
+    },
+    "evidence_status": {
+      "enum": [
+        "verified",
+        "partially_verified",
+        "unverified"
+      ]
+    },
+    "handling_reason": {
+      "type": "string"
+    },
+    "missing_policy": {
+      "type": "string"
+    },
+    "name": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "question": {
+      "oneOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "risk": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "skillgate.input_slot_state.v1"
+    },
+    "status": {
+      "enum": [
+        "agent_discoverable",
+        "blocked",
+        "human_askable",
+        "irrelevant",
+        "known",
+        "requires_authorization",
+        "safe_assumption"
+      ]
+    },
+    "support": {
+      "enum": [
+        "explicit",
+        "guessed",
+        "inferred",
+        "recommended"
+      ]
+    },
+    "text": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "value": {
+      "oneOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "value_source": {
+      "type": "string"
+    },
+    "value_source_span": {
+      "items": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    }
+  },
   "required": [
     "schema_version",
     "name",
@@ -23,122 +161,6 @@
     "handling_reason",
     "confidence"
   ],
-  "properties": {
-    "schema_version": {
-      "const": "skillgate.input_slot_state.v1"
-    },
-    "name": {
-      "type": "string",
-      "minLength": 1
-    },
-    "text": {
-      "type": "string",
-      "minLength": 1
-    },
-    "description": {
-      "type": "string",
-      "minLength": 1
-    },
-    "category": {
-      "enum": [
-        "agent_discoverable",
-        "blocked",
-        "human_askable",
-        "irrelevant",
-        "known",
-        "requires_authorization",
-        "safe_assumption"
-      ]
-    },
-    "status": {
-      "enum": [
-        "agent_discoverable",
-        "blocked",
-        "human_askable",
-        "irrelevant",
-        "known",
-        "requires_authorization",
-        "safe_assumption"
-      ]
-    },
-    "value": {
-      "oneOf": [
-        {
-          "type": "string",
-          "minLength": 1
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "question": {
-      "oneOf": [
-        {
-          "type": "string",
-          "minLength": 1
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "assumption": {
-      "oneOf": [
-        {
-          "type": "string",
-          "minLength": 1
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "evidence_ids": {
-      "type": "array",
-      "minItems": 0,
-      "items": {
-        "type": "string",
-        "minLength": 1
-      }
-    },
-    "answer_source": {
-      "enum": [
-        "agent",
-        "authorization",
-        "blocked",
-        "human",
-        "human_or_agent",
-        "known",
-        "policy_default"
-      ]
-    },
-    "support": {
-      "enum": [
-        "explicit",
-        "guessed",
-        "inferred",
-        "recommended"
-      ]
-    },
-    "risk": {
-      "type": "string",
-      "minLength": 1
-    },
-    "ambiguity": {
-      "type": "string",
-      "minLength": 1
-    },
-    "handling_reason": {
-      "type": "string"
-    },
-    "confidence": {
-      "type": "number",
-      "minimum": 0.0,
-      "maximum": 1.0
-    },
-    "missing_policy": {
-      "type": "string"
-    }
-  }
+  "title": "SkillGate InputSlotState",
+  "type": "object"
 }

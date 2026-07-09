@@ -30,6 +30,7 @@ from .schema import (
     INPUT_SLOT_STATE_VERSION,
     build_input_slot_state,
     evidence,
+    normalize_contract,
     statement,
 )
 
@@ -58,6 +59,12 @@ class SkillAnalysis:
     # Execution constraints (always-active, from contract)
     execution_constraints: list[dict[str, Any]]
 
+    # Forbidden actions (always propagated; block on explicit violation)
+    forbidden_actions: list[dict[str, Any]]
+
+    # Stop conditions (state-evaluated)
+    stop_conditions: list[dict[str, Any]]
+
     # Low-confidence slots (confidence == 0.0, skipped in decision-making)
     low_confidence_slots: list[dict[str, Any]]
 
@@ -68,7 +75,7 @@ class SkillAnalysis:
     goal: str
     assumptions: list[str]
     readonly_exploration_plan: list[str]
-    forbidden_actions: list[str]
+    forbidden_actions_legacy: list[str]
     verification_policy: list[str]
     unresolved_unknowns: list[str]
 
@@ -102,21 +109,17 @@ def analyze_against_skill(
         task_kind = _task_kind_for_skill(skill_id)
 
     contract = get_contract_for_skill(skill_id)
-
-    # Backward compat: if old contract only has "block_if" but no new fields,
-    # copy block_if items to safety_blocks.
-    _ensure_modern_contract_sections(contract)
+    contract = normalize_contract(contract)  # always canonical v2
 
     # Read execution constraints (always-active constraints from the contract)
     exec_constraints = contract.get("execution_constraints", [])
+    forbidden_actions = contract.get("forbidden_actions", [])
+    stop_conditions = contract.get("stop_conditions", [])
 
-    # 2. Check block conditions (safety_blocks + forbidden_actions + stop_conditions)
-    all_block_conditions = (
-        contract.get("safety_blocks", [])
-        + contract.get("forbidden_actions", [])
-        + contract.get("stop_conditions", [])
-    )
-    block_reason = _check_block_conditions(all_block_conditions, raw_request)
+    # 2. Safety blocks: a dangerous *request* blocks immediately.
+    #    forbidden_actions and stop_conditions are NOT keyword-matched here —
+    #    they have distinct runtime semantics handled below.
+    block_reason = _check_safety_blocks(contract.get("safety_blocks", []), raw_request)
     if block_reason:
         return _make_decision(
             skill_id=skill_id,
@@ -126,7 +129,9 @@ def analyze_against_skill(
             reason=block_reason,
             confidence=0.95,
             execution_constraints=exec_constraints,
-            blocked=[{"id": b["id"], "text": b["text"], "category": "blocked"} for b in all_block_conditions],
+            forbidden_actions=forbidden_actions,
+            stop_conditions=stop_conditions,
+            blocked=[{"id": b["id"], "text": b["text"], "category": "blocked"} for b in contract.get("safety_blocks", [])],
         )
 
     # 3. Evaluate slots against the request
@@ -203,6 +208,40 @@ def analyze_against_skill(
     requires_authorization = _dedupe_slot_states(requires_authorization)
     blocked_slots = _dedupe_slot_states(blocked_slots)
 
+    # forbidden_actions are always propagated downstream as constraints, but
+    # they also block when the user EXPLICITLY requests the forbidden action
+    # (not merely mentions a related word).  This distinguishes "propagate"
+    # from "block" semantics.
+    forbidden_violation = _check_forbidden_action_violation(forbidden_actions, raw_request)
+    if forbidden_violation:
+        return _make_decision(
+            skill_id, contract, task_kind, "block_unsafe",
+            forbidden_violation, 0.95,
+            blocked=[{"id": fa["id"], "text": fa["text"], "category": "blocked"} for fa in forbidden_actions],
+            execution_constraints=exec_constraints,
+            forbidden_actions=forbidden_actions,
+            stop_conditions=stop_conditions,
+            safe_assumptions=safe_assumptions,
+        )
+
+    # stop_conditions are evaluated against slot STATE, not keyword search.
+    # A stop condition fires when its predicate is true given the current
+    # slot categorization (e.g. a critical required slot is unanswered AND the
+    # request is too vague to recover it).
+    stop_reason = _evaluate_stop_conditions(
+        stop_conditions, human_askable, requires_authorization, raw_request, task_kind,
+    )
+    if stop_reason:
+        return _make_decision(
+            skill_id, contract, task_kind, "block_unsafe",
+            stop_reason, 0.9,
+            blocked=[{"id": sc["id"], "text": sc["text"], "category": "blocked"} for sc in stop_conditions],
+            execution_constraints=exec_constraints,
+            forbidden_actions=forbidden_actions,
+            stop_conditions=stop_conditions,
+            safe_assumptions=safe_assumptions,
+        )
+
     # P1-2: missing_policy overrides category-based routing
     missing_policy_map = {
         "ask_user": "human_askable",
@@ -266,6 +305,8 @@ def analyze_against_skill(
             reason,
             0.95, blocked=blocked_slots,
             execution_constraints=exec_constraints,
+            forbidden_actions=forbidden_actions,
+            stop_conditions=stop_conditions,
             safe_assumptions=safe_assumptions,
             low_confidence_slots=low_confidence_slots,
         )
@@ -280,6 +321,8 @@ def analyze_against_skill(
             reason,
             0.90, requires_authorization=requires_authorization, questions=questions,
             execution_constraints=exec_constraints,
+            forbidden_actions=forbidden_actions,
+            stop_conditions=stop_conditions,
             safe_assumptions=safe_assumptions,
             low_confidence_slots=low_confidence_slots,
         )
@@ -294,6 +337,8 @@ def analyze_against_skill(
             reason,
             0.85, human_askable=human_askable, questions=questions,
             execution_constraints=exec_constraints,
+            forbidden_actions=forbidden_actions,
+            stop_conditions=stop_conditions,
             safe_assumptions=safe_assumptions,
             low_confidence_slots=low_confidence_slots,
         )
@@ -308,6 +353,8 @@ def analyze_against_skill(
             reason,
             0.84, agent_discoverable=agent_discoverable, readonly_exploration_plan=exploration,
             execution_constraints=exec_constraints,
+            forbidden_actions=forbidden_actions,
+            stop_conditions=stop_conditions,
             safe_assumptions=safe_assumptions,
             low_confidence_slots=low_confidence_slots,
         )
@@ -324,6 +371,8 @@ def analyze_against_skill(
         "assume_and_continue" if safe_assumptions else "compile_directly",
         reason, 0.82, safe_assumptions=safe_assumptions,
         execution_constraints=exec_constraints,
+        forbidden_actions=forbidden_actions,
+        stop_conditions=stop_conditions,
         low_confidence_slots=low_confidence_slots,
     )
 
@@ -358,41 +407,143 @@ def _task_kind_for_skill(skill_id: str) -> str:
     return reverse.get(skill_id, "unknown")
 
 
-def _check_block_conditions(block_if: list[dict[str, Any]], raw_request: str) -> str | None:
-    """Check if any block conditions are triggered by the request."""
+def _check_safety_blocks(safety_blocks: list[dict[str, Any]], raw_request: str) -> str | None:
+    """Check whether a safety_block condition matches the *request*.
+
+    safety_blocks describe dangerous requests themselves (credential/secret
+    access, production mutation, destructive ops, payment+secret).  A match
+    blocks immediately.  This is the only block category evaluated by
+    request-text matching; forbidden_actions and stop_conditions have their
+    own semantics.
+    """
     lower = raw_request.lower()
-    for condition in block_if:
+    for condition in safety_blocks:
         text = condition.get("text", "").lower()
-        if ("credential" in text or "secret" in text or "exfiltration" in text) and _contains(
-            lower, ["密钥", "secret", "exfiltrate", "泄露密钥", "dump", "token"]
+        cid = condition.get("id", "").lower()
+        if ("credential" in text or "secret" in text or "exfiltration" in text
+                or "credential" in cid or "exfil" in cid) and _contains(
+            lower, ["密钥", "secret", "exfiltrate", "泄露密钥", "dump", "token", "exfil"]
         ):
             return "The request may involve credential or secret access."
         if "production" in text and _contains(lower, ["生产数据库", "production database", "生产环境"]):
             return "The request may involve production data mutation."
         if "destructive" in text and _contains(lower, ["删除", "drop", "rm -rf", "清空"]):
             return "The request may involve destructive operations."
-        # Payment + secret combination (e.g., Stripe with API key)
-        if "payment" in text and _contains(lower, ["密钥", "secret", "api key", "credential", "stripe", "付款", "payment"]):
-            return "Payment integration with secret usage requires explicit safe sandbox setup."
-
-        # Generic fallback: for conditions that don't match any hardcoded pattern,
-        # check if any significant word from the condition text appears in the raw request.
-        # This handles entries like "Fabricating unsupported project claims" by
-        # extracting keywords and checking if any appear in the user's request.
-        condition_words = text.split()
-        significant_words = [w for w in condition_words if len(w) > 2 and w not in
-                             ("the", "and", "for", "are", "not", "with", "that", "this",
-                              "from", "been", "have", "will", "your", "can", "its",
-                              "was", "has", "but", "all", "any", "into", "over",
-                              "some", "such", "than", "then", "when", "just",
-                              "may", "how", "what", "who", "where", "which",
-                              "our", "you", "they", "does")]
-        if significant_words and any(
-            sw in lower for sw in significant_words[:15]
+        if "payment" in text and _contains(
+            lower, ["密钥", "secret", "api key", "credential", "stripe", "付款", "payment"]
         ):
-            return f"The request may involve: {condition.get('text', 'condition').strip()}"
-
+            return "Payment integration with secret usage requires explicit safe sandbox setup."
     return None
+
+
+def _check_forbidden_action_violation(
+    forbidden_actions: list[dict[str, Any]], raw_request: str
+) -> str | None:
+    """Block only when the user EXPLICITLY requests a forbidden action.
+
+    forbidden_actions are normally propagated downstream as constraints (they
+    forbid the agent from doing X).  They become a hard block only when the
+    user's request explicitly asks for the forbidden thing — not when a
+    related word merely appears.  This requires a strong, intentional signal:
+    an action verb tied to the forbidden action's object.
+    """
+    lower = raw_request.lower()
+    # Map forbidden_action id/text fragments to explicit-request patterns.
+    # Each pattern needs BOTH a verb and an object to avoid false positives.
+    explicit_patterns = [
+        # "Fabricating unsupported project claims" → user asks to invent metrics/claims
+        (["fabricat", "claim", "metric", "adoption", "benchmark"],
+         ["invent", "fabricate", "make up", "fake", "夸大", "编造", "虚构", "捏造"],
+         "fabricate claims"),
+        # Generic "never introduce dependencies" style
+        (["dependenc", "引入依赖"],
+         ["add dependenc", "introduce dependenc", "引入依赖", "加依赖", "添加依赖"],
+         "introduce dependencies"),
+    ]
+    for fa in forbidden_actions:
+        text = fa.get("text", "").lower()
+        fid = fa.get("id", "").lower()
+        for object_kws, verb_kws, _label in explicit_patterns:
+            if any(o in text or o in fid for o in object_kws) and any(
+                v in lower for v in verb_kws
+            ):
+                return (
+                    f"The request explicitly requests a forbidden action: "
+                    f"{fa.get('text', fid).strip()}."
+                )
+    return None
+
+
+def _evaluate_stop_conditions(
+    stop_conditions: list[dict[str, Any]],
+    human_askable: list[dict[str, Any]],
+    requires_authorization: list[dict[str, Any]],
+    raw_request: str,
+    task_kind: str,
+) -> str | None:
+    """Evaluate stop_conditions against slot STATE (not keyword search).
+
+    A stop condition fires when its predicate is true given the current slot
+    categorization.  Known predicates:
+      - unclear_intent / "fundamentally unclear": the request is *actionably
+        uninterpretable* — too short to even determine what to ask, AND the
+        task-direction required slot is unanswered.  A merely vague request
+        that can still be clarified (e.g. "优化一下") does NOT fire this; it
+        should route to ask_user instead.
+    """
+    if not stop_conditions:
+        return None
+
+    ha_names = {s.get("name", s.get("id", "")) for s in human_askable}
+
+    for sc in stop_conditions:
+        cid = sc.get("id", "").lower()
+        text = sc.get("text", "").lower()
+        is_unclear = "unclear" in cid or "unclear" in text or "fundamentally" in text
+        if not is_unclear:
+            continue
+        # Predicate: task direction is unanswered AND the request is
+        # actionably uninterpretable (no recoverable task signal at all).
+        direction_unanswered = any(
+            n in ha_names for n in ("task_direction", "task_direction_primary", "scope")
+        )
+        uninterpretable = _is_uninterpretable_request(raw_request)
+        if direction_unanswered and uninterpretable:
+            return (
+                f"Stop condition triggered: {sc.get('text', cid).strip()} "
+                "(task direction is unanswerable and the request has no recoverable signal)."
+            )
+    return None
+
+
+def _is_uninterpretable_request(raw_request: str) -> bool:
+    """Detect requests so terse they cannot even drive a clarifying question.
+
+    This is intentionally a HIGH bar: only near-empty requests or pure
+    pleasantries qualify.  Vague-but-recoverable requests like "优化一下"
+    ("optimize it") still have enough signal to ask "optimize what?", so they
+    route to ask_user rather than block.
+    """
+    text = raw_request.strip().lower()
+    if not text:
+        return True
+    # Pure pleasantries / non-requests with no task verb.
+    non_requests = {
+        "hello", "hi", "hey", "thanks", "ok", "okay", "yes", "no",
+        "你好", "谢谢", "好的", "嗯",
+    }
+    return text in non_requests
+
+
+def _is_vague_request(raw_request: str) -> bool:
+    """Detect requests too vague to recover a task direction from."""
+    text = raw_request.strip().lower()
+    vague_set = {
+        "优化一下", "清理一下项目", "你看着办", "you decide", "help", "do something",
+        "fix it", "看看", "处理一下", "搞一下",
+    }
+    return text in vague_set or len(text) <= 6
+
 
 def _ensure_modern_contract_sections(contract: dict[str, Any]) -> None:
     """Backward compat: if old contract only has 'block_if' but no new fields,
@@ -439,18 +590,22 @@ def _evaluate_slot(
     missing_policy = slot.get("missing_policy")
     confidence = slot.get("confidence", 1.0)
 
-    # Check if request provides the info
-    if _slot_is_filled(slot, raw_request, context):
+    # Check if request provides the info (with value binding)
+    binding = _bind_slot(slot, raw_request, context)
+    if binding["filled"]:
         return build_input_slot_state(
             name=slot_id,
             description=text,
             category="known",
             status="known",
+            value=binding["value"],
             answer_source=answer_source,
             support=support,
             handling_reason="Request or context provides this information.",
             confidence=confidence,
             missing_policy=missing_policy,
+            value_source=binding["source"],
+            value_source_span=binding["source_span"],
         )
 
     return build_input_slot_state(
@@ -662,14 +817,123 @@ def _slot_is_filled(slot: dict[str, Any], raw_request: str, context: ContextResu
         ])
 
     # Generic fallback for custom skill slots not in the hardcoded list.
-    # Use the slot's text/description for keyword matching against the raw request.
+    # CONSERVATIVE: a single common word matching is a false-positive hazard
+    # (e.g. slot "What output format?" matching request "What should I do?"
+    # on the word "what").  We only treat a custom slot as filled when there
+    # is a strong signal: either the slot's id stem appears in the request,
+    # or a multi-word phrase from the slot description appears verbatim.
+    # Single short common words are explicitly excluded.
     slot_text = slot.get("text", "")
     if slot_text:
-        # Tokenize the slot description and check if any significant word appears
-        keywords = [w.lower() for w in slot_text.split() if len(w) > 2]
-        if any(kw in raw_request.lower() for kw in keywords[:20]):  # cap at 20 keywords to avoid noise
+        lower_req = raw_request.lower()
+        # 1) slot id stem present in the request (strong signal).
+        id_stem = re.sub(r"[_\W]+", " ", slot_id).strip()
+        if id_stem:
+            id_tokens = [t for t in id_stem.split() if len(t) > 2]
+            if id_tokens and all(t in lower_req for t in id_tokens):
+                return True
+        # 2) a multi-word phrase (>=2 words, each >2 chars) from the slot
+        # description appears verbatim in the request.
+        words = re.findall(r"[\w]+", slot_text)
+        phrases = [
+            " ".join(words[i:j]).lower()
+            for i in range(len(words))
+            for j in range(i + 2, min(i + 5, len(words) + 1))
+            if all(len(w) > 2 for w in words[i:j])
+        ]
+        if any(p in lower_req for p in phrases[:30]):
             return True
     return False
+
+
+def _bind_slot(
+    slot: dict[str, Any], raw_request: str, context: ContextResult | None
+) -> dict[str, Any]:
+    """Bind a slot to a value extracted from the request, if filled.
+
+    Returns a binding dict:
+      {"filled": bool, "value": str|None, "source": str|None,
+       "source_span": [start, end]|None, "confidence": float}
+
+    This upgrades slot evaluation from presence detection to value binding:
+    when a slot is filled, we record WHAT value was bound, WHERE in the
+    request it came from (character span), and a confidence.  Conflict
+    detection (multiple differing values) is reported via the caller.
+    """
+    if not _slot_is_filled(slot, raw_request, context):
+        return {"filled": False, "value": None, "source": None,
+                "source_span": None, "confidence": slot.get("confidence", 1.0)}
+
+    slot_id = slot["id"]
+    slot_text = slot.get("text", "")
+    lower = raw_request.lower()
+
+    # Value extraction heuristics, ordered by specificity.
+    value: str | None = None
+    source = "user_request"
+    span: list[int] | None = None
+
+    # Explicit clarification answer: highest-confidence value.
+    answers = _clarification_answers_by_question(raw_request)
+    if answers.get(slot_text):
+        value = answers[slot_text]
+        source = "clarification_answer"
+
+    # File-path-like values for target slots.
+    if value is None and slot_id in (
+        "target_scope", "target_document", "review_target", "failing_test_target",
+    ):
+        m = re.search(r"(?<![\w./-])(?:[\w.-]+/)+[\w.-]+\.[A-Za-z0-9]+", raw_request)
+        if m:
+            value = m.group(0)
+            span = [m.start(), m.end()]
+        elif re.search(r"\btest_\w+", lower):
+            m = re.search(r"\btest_\w+", raw_request)
+            if m:
+                value = m.group(0)
+                span = [m.start(), m.end()]
+
+    # Test/build command values.
+    if value is None and slot_id in (
+        "test_framework", "test_command", "reproduction_command", "smallest_test_command",
+    ):
+        for pat in [r"pytest\b", r"cargo test\b", r"npm test\b", r"npm run\b",
+                    r"go test\b", r"jest\b", r"cargo build\b", r"make\b"]:
+            m = re.search(pat, raw_request, re.IGNORECASE)
+            if m:
+                value = m.group(0)
+                span = [m.start(), m.end()]
+                break
+
+    # Package manager values.
+    if value is None and slot_id == "package_manager":
+        for pat in [r"\bnpm\b", r"\bpip\b", r"\bcargo\b", r"\bgo mod\b",
+                    r"\byarn\b", r"\bpnpm\b", r"\buv\b", r"\bpoetry\b"]:
+            m = re.search(pat, raw_request)
+            if m:
+                value = m.group(0)
+                span = [m.start(), m.end()]
+                break
+
+    # Generic fallback: the matched keyword phrase that triggered the fill.
+    if value is None:
+        # Find the first significant token from the slot that appears in the
+        # request, as a best-effort value anchor.
+        words = re.findall(r"[\w]+", slot_text)
+        for w in words:
+            if len(w) > 2:
+                idx = lower.find(w.lower())
+                if idx != -1:
+                    value = raw_request[idx: idx + len(w)]
+                    span = [idx, idx + len(w)]
+                    break
+        if value is None:
+            # Filled via context or clarification marker; value unknown.
+            value = None
+            source = "context_or_request"
+
+    return {"filled": True, "value": value, "source": source,
+            "source_span": span, "confidence": slot.get("confidence", 1.0)}
 
 
 def _clarification_answers_by_question(raw_request: str) -> dict[str, str]:
@@ -750,11 +1014,20 @@ def _is_covered_by_safe_default(
 def _build_slot_state(slot: dict[str, Any], raw_request: str, status: str) -> dict[str, Any]:
     """Build an InputSlotState from a slot entry."""
     effective_cat = _effective_category(slot)
+    value = None
+    value_source = None
+    value_span = None
+    if status == "known":
+        binding = _bind_slot(slot, raw_request, None)
+        value = binding["value"]
+        value_source = binding["source"]
+        value_span = binding["source_span"]
     return build_input_slot_state(
         name=slot["id"],
         description=slot["text"],
         category=effective_cat,
         status=status,
+        value=value,
         answer_source=slot.get("answer_source", slot["category"]),
         support=slot.get("support", "recommended"),
         question=slot["text"] if status in ("human_askable", "requires_authorization") else None,
@@ -762,6 +1035,8 @@ def _build_slot_state(slot: dict[str, Any], raw_request: str, status: str) -> di
         handling_reason=f"Slot '{slot['id']}' → {status}.",
         confidence=slot.get("confidence", 1.0),
         missing_policy=slot.get("missing_policy"),
+        value_source=value_source,
+        value_source_span=value_span,
     )
 
 
@@ -846,6 +1121,8 @@ def _make_decision(
     requires_authorization: list[dict[str, Any]] | None = None,
     blocked: list[dict[str, Any]] | None = None,
     execution_constraints: list[dict[str, Any]] | None = None,
+    forbidden_actions: list[dict[str, Any]] | None = None,
+    stop_conditions: list[dict[str, Any]] | None = None,
     low_confidence_slots: list[dict[str, Any]] | None = None,
     questions: list[str] | None = None,
     readonly_exploration_plan: list[str] | None = None,
@@ -858,15 +1135,19 @@ def _make_decision(
     ra = requires_authorization or []
     bl = blocked or []
     ec = execution_constraints or []
+    fa = forbidden_actions or []
+    sc = stop_conditions or []
     lc = low_confidence_slots or []
 
     # Build goal from skill description
     goal = contract.get("skill_description", f"Execute {skill_id} task.")
 
-    # Legacy compat fields
+    # Legacy compat fields (forbidden_actions_legacy keeps the old union of
+    # blocked + safe_assumption texts so downstream legacy consumers keep
+    # working; the structured forbidden_actions field is the new contract).
     assumptions = [s["text"] for s in sa]
     exploration_plan = readonly_exploration_plan or [f"Discover: {s['text']}" for s in ad]
-    forbidden = [s["text"] for s in bl] + [s["text"] for s in sa]
+    forbidden_legacy = [s["text"] for s in bl] + [s["text"] for s in sa] + [s["text"] for s in fa]
     verification = [s["text"] for s in ad[:3]]
     unknowns = [s["text"] for s in ha] + [s["text"] for s in ra]
 
@@ -886,12 +1167,14 @@ def _make_decision(
         requires_authorization=ra,
         blocked=bl,
         execution_constraints=ec,
+        forbidden_actions=fa,
+        stop_conditions=sc,
         low_confidence_slots=lc,
         questions=resolved_questions,
         goal=goal,
         assumptions=assumptions,
         readonly_exploration_plan=exploration_plan,
-        forbidden_actions=forbidden,
+        forbidden_actions_legacy=forbidden_legacy,
         verification_policy=verification,
         unresolved_unknowns=unknowns,
     )
