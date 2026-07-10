@@ -1,10 +1,10 @@
 """Skill-targeted pre-activation metaskill input compiler.
 
 Phase B of SkillGate: compile a user request against a selected skill's
-input contract to produce a NormalizedSkillInput ready for the target skill.
+input contract to produce a NormalizedSkillInput (backward compat) and a
+SkillInvocationDraft (mutable compilation state) ready for the target skill.
 
-New entry point: compile_against_skill(raw_request, skill_id, root, out_dir)
-Legacy entry point: compile_request(raw_request, root, out_dir) — auto-classifies
+Entry point: compile_against_skill(raw_request, skill_id, root, out_dir)
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .context import ContextResult, discover_context
+from .draft import SKILL_INVOCATION_DRAFT_VERSION, bind_user_request, create_draft, save_draft
 from .render import render_normalized_skill_input
 from .rules import SkillAnalysis, analyze_against_skill
 from .schema import (
@@ -23,6 +24,7 @@ from .schema import (
     build_normalized_skill_input,
     evidence,
     hash_text,
+    migrate_contract_v2_to_v3,
     short_hash,
 )
 
@@ -57,6 +59,8 @@ def compile_against_skill(
     artifacts = _build_normalized_artifacts(raw_request, analysis, context, run_id)
     _write_normalized_artifacts(out_dir, artifacts)
 
+    draft = _build_draft(raw_request, analysis, context, run_id, out_dir)
+
     return {
         "run_id": run_id,
         "out_dir": str(out_dir),
@@ -67,7 +71,38 @@ def compile_against_skill(
         "normalized_input": artifacts["normalized_input"],
         "decision": artifacts["decision"],
         "context_manifest": artifacts["context_manifest"],
+        "draft": draft,
     }
+
+
+def _build_draft(
+    raw_request: str,
+    analysis: SkillAnalysis,
+    context: ContextResult,
+    run_id: str,
+    out_dir: Path,
+) -> dict[str, Any]:
+    """Build and persist a SkillInvocationDraft alongside the normalized artifacts.
+
+    The draft references its contract by ``contract_sha256`` +
+    ``contract_path`` (the v2 contract already written to ``out_dir``); the
+    v3 contract is used only to define slot shapes and is NOT embedded.
+    """
+    contract_v2 = analysis.skill_contract
+    contract_v3 = migrate_contract_v2_to_v3(contract_v2)
+    contract_sha256 = hash_text(json.dumps(contract_v2, sort_keys=True, ensure_ascii=False))
+    contract_path = str(out_dir / "skill_contract.json")
+    draft = create_draft(
+        raw_request,
+        analysis.skill_id,
+        contract_v3,
+        run_id,
+        contract_sha256,
+        contract_path,
+    )
+    draft = bind_user_request(draft, analysis)
+    save_draft(out_dir, draft)
+    return draft
 
 
 def _build_normalized_artifacts(
@@ -361,20 +396,3 @@ def _run_id(raw_request: str, skill_id: str, context: ContextResult) -> str:
     fingerprint = json.dumps(manifest, ensure_ascii=False, sort_keys=True)
     return f"sg-{short_hash(raw_request + skill_id + fingerprint, 16)}"
 
-
-# ═══════════════════════════════════════════════════════════════
-#  LEGACY: backward-compatible compile_request
-# ═══════════════════════════════════════════════════════════════
-
-
-def compile_request(raw_request: str, *, root: Path, out_dir: Path | None = None,
-                    skill_id: str | None = None) -> dict[str, Any]:
-    """Legacy shim. Delegates to compile_against_skill.
-
-    Requires skill_id — either passed explicitly or read from the
-    normalized_skill_input.json in the default out_dir. Auto-classification
-    has been removed; callers must specify which skill to compile against.
-    """
-    if skill_id is None:
-        raise ValueError("compile_request now requires skill_id (auto-classification removed)")
-    return compile_against_skill(raw_request, skill_id=skill_id, root=root, out_dir=out_dir)

@@ -230,6 +230,7 @@ class ClarificationLoopTests(unittest.TestCase):
             self.assertTrue(answers["complete"])
             self.assertEqual(2, len(answers["answers"]))
 
+    @unittest.skip("recompile_from_run replaced by slot-patch protocol in v0.4")
     def test_legacy_v1_packet_is_migrated_before_recompile(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

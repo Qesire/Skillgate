@@ -7,7 +7,8 @@ Commands:
     explain        — Explain a decision artifact.
     answer         — Record a clarification answer.
     answer-batch   — Record answers from a JSON mapping.
-    recompile      — Recompile after clarification.
+    recompile      — Recompile after clarification (deprecated, use apply-patch).
+    apply-patch    — Apply structured slot patches to a draft.
     schemas        — Export/validate JSON Schemas.
 """
 
@@ -64,6 +65,9 @@ def main(argv: list[str] | None = None) -> None:
     _register_answer_batch(subparsers)
     _register_recompile(subparsers)
 
+    # ── apply-patch ──────────────────────────────────────
+    _register_apply_patch(subparsers)
+
     # ── schemas ───────────────────────────────────────────
     _register_schemas(subparsers)
 
@@ -80,6 +84,7 @@ def main(argv: list[str] | None = None) -> None:
         "answer": _cmd_answer,
         "answer-batch": _cmd_answer_batch,
         "recompile": _cmd_recompile,
+        "apply-patch": _cmd_apply_patch,
         "schemas": _cmd_schemas,
     }
     dispatcher[args.command](args)
@@ -438,6 +443,33 @@ def _cmd_recompile(args: argparse.Namespace) -> None:
         return
     print(f"Decision: {decision['kind']}")
     print(f"Run: {result['out_dir']}")
+
+
+# ── apply-patch ────────────────────────────────────────────────
+
+
+def _register_apply_patch(subparsers: argparse._SubParsersAction) -> None:
+    p = subparsers.add_parser("apply-patch", help="Apply structured slot patches to a draft.")
+    p.add_argument("run_dir", help="Run directory containing draft.json")
+    p.add_argument("--json", help="JSON string with operations list")
+
+
+def _cmd_apply_patch(args: argparse.Namespace) -> None:
+    from .draft import apply_slot_patch, load_draft, save_draft
+
+    run_dir = Path(args.run_dir)
+    draft = load_draft(run_dir)
+    operations = json.loads(args.json).get("operations", [])
+    draft = apply_slot_patch(draft, operations)
+    save_draft(run_dir, draft)
+    summary = {
+        "status": draft["status"],
+        "slots": {
+            sid: {"state": s["state"], "confirmed": s["confirmed"]}
+            for sid, s in draft.get("slots", {}).items()
+        },
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
 
 
 # ── schemas ───────────────────────────────────────────────────

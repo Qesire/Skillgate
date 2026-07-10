@@ -19,7 +19,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from .capabilities import CONTRACT_REGISTRY
-from .constants import CLARIFICATION_MARKER
 from .context import ContextResult
 from .schema import (
     SKILL_INPUT_CONTRACT_VERSION,
@@ -696,9 +695,6 @@ def _slot_is_filled(slot: dict[str, Any], raw_request: str, context: ContextResu
     slot_text = slot.get("text", "")
     lower = raw_request.lower()
 
-    if _clarification_answers_by_question(raw_request).get(slot_text):
-        return True
-
     # ── Test / build infrastructure ──────────────────────────
     if slot_id in ("test_framework", "test_command", "reproduction_command",
                    "smallest_test_command"):
@@ -933,11 +929,9 @@ def _bind_slot(
     span: list[int] | None = None
     candidates: list[str] = []
 
-    # Explicit clarification answer: highest-confidence value.
-    answers = _clarification_answers_by_question(raw_request)
-    if answers.get(slot_text):
-        value = answers[slot_text]
-        source = "clarification_answer"
+    # Text-patching clarification has been removed in v0.4; slot patches
+    # update the draft directly. No clarification answers to parse here.
+    answers: dict[str, str] = {}
 
     # Enum-based extraction: if the slot declares value_enum, search for any
     # enum member in the request (case-insensitive), collecting all as candidates.
@@ -1015,21 +1009,6 @@ def _bind_slot(
     return {"filled": True, "value": value, "source": source,
             "source_span": span, "confidence": slot.get("confidence", 1.0),
             "candidates": candidates, "conflict": False}
-
-
-def _clarification_answers_by_question(raw_request: str) -> dict[str, str]:
-    if CLARIFICATION_MARKER.lower() not in raw_request.lower():
-        return {}
-    answers: dict[str, str] = {}
-    current_question: str | None = None
-    for line in raw_request.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("- Question:"):
-            current_question = stripped.removeprefix("- Question:").strip()
-        elif current_question and stripped.startswith("Answer:"):
-            answers[current_question] = stripped.removeprefix("Answer:").strip()
-            current_question = None
-    return answers
 
 
 def _is_covered_by_safe_default(
@@ -1206,7 +1185,10 @@ def _must_ask_from_request(raw_request: str, task_kind: str) -> str | None:
     """Detect high-ambiguity patterns that must be asked."""
     text = raw_request.lower()
 
-    if CLARIFICATION_MARKER.lower() in text and "answer:" in text:
+    # Text-patching clarification removed in v0.4; this check is dead code
+    # but kept as a no-op guard for legacy request text that may contain
+    # old markers. It will never match in the new slot-patch protocol.
+    if "[skillgate clarification answers applied]" in text and "answer:" in text:
         return None
 
     if _contains(text, ["更新 snapshot", "snapshot 不一致", "update snapshot"]):

@@ -5,13 +5,11 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from .compiler import compile_against_skill, compile_request
+from .compiler import compile_against_skill
 from .constants import (
     ANSWER_SCHEMA_VERSION,
-    CLARIFICATION_MARKER,
     CLARIFICATION_SCHEMA_VERSION,
     LEGACY_CLARIFICATION_SCHEMA_VERSION,
-    RECOMPILE_SCHEMA_VERSION,
 )
 from .context import redact_secret_like_text
 from .json_schema import (
@@ -105,67 +103,10 @@ def record_clarification_answers(
 
 
 def recompile_from_run(run_dir: Path, *, out_dir: Path | None = None) -> dict[str, Any]:
-    run_dir = run_dir.resolve()
-    packet = _load_or_create_packet(run_dir)
-    if packet["status"] != "answered":
-        raise ValueError("all clarification questions must be answered before recompile")
-
-    raw_request_path = run_dir / "request.md"
-    context_manifest_path = run_dir / "context_manifest.json"
-    if not raw_request_path.exists():
-        raise ValueError(f"missing request artifact: {raw_request_path}")
-    if not context_manifest_path.exists():
-        raise ValueError(f"missing context manifest artifact: {context_manifest_path}")
-
-    raw_request = raw_request_path.read_text(encoding="utf-8").strip()
-    context_manifest = json.loads(context_manifest_path.read_text(encoding="utf-8"))
-    root = Path(context_manifest["root"])
-    resolved_request = build_resolved_request(raw_request, packet)
-    result = _recompile_resolved_request(run_dir, resolved_request, root=root, out_dir=out_dir)
-    metadata = {
-        "schema_version": RECOMPILE_SCHEMA_VERSION,
-        "parent_run_id": packet["run_id"],
-        "parent_run_dir": str(run_dir),
-        "child_run_id": result["run_id"],
-        "original_request_sha256": hash_text(raw_request),
-        "resolved_request_sha256": hash_text(resolved_request),
-        "redacted_answers": sum(1 for item in packet["questions"] if item.get("redacted") is True),
-        "answers": [
-            {
-                "question_id": item["id"],
-                "question": item["text"],
-                "answer_sha256": item.get("answer_sha256") or hash_text(item.get("answer") or ""),
-                "redacted": item.get("redacted") is True,
-            }
-            for item in packet["questions"]
-        ],
-    }
-    _write_json(Path(result["out_dir"]) / "recompile_metadata.json", metadata)
-    return result
-
-
-def build_resolved_request(raw_request: str, packet: dict[str, Any]) -> str:
-    lines = [
-        CLARIFICATION_MARKER,
-        "",
-        "Original request:",
-        raw_request.strip(),
-        "",
-        "Clarification answers:",
-    ]
-    for item in packet["questions"]:
-        answer = item.get("answer")
-        if answer is None:
-            continue
-        lines.append(f"- Question: {item['text']}")
-        lines.append(f"  Answer: {answer}")
-    lines.extend(
-        [
-            "",
-            "Compile the target skill input using these answers. Do not ask the same answered clarification questions again.",
-        ]
+    raise NotImplementedError(
+        "recompile_from_run replaced by slot-patch protocol. "
+        "Use apply_slot_patch() + load_draft()/save_draft() instead."
     )
-    return "\n".join(lines)
 
 
 def validate_clarification_artifacts(pre_run: Path, post_run: Path) -> dict[str, Any]:
@@ -272,8 +213,6 @@ def validate_clarification_artifacts(pre_run: Path, post_run: Path) -> dict[str,
         errors.append("original request hash mismatch")
     if metadata.get("resolved_request_sha256") != hash_text(resolved_request):
         errors.append("resolved request hash mismatch")
-    if CLARIFICATION_MARKER not in resolved_request:
-        errors.append("resolved request is missing the clarification marker")
 
     return {
         "passed": not errors,
@@ -344,35 +283,6 @@ def _load_or_create_packet(run_dir: Path) -> dict[str, Any]:
             "decision": decision,
         },
     )
-
-
-def _recompile_resolved_request(
-    run_dir: Path,
-    resolved_request: str,
-    *,
-    root: Path,
-    out_dir: Path | None,
-) -> dict[str, Any]:
-    normalized_path = run_dir / "normalized_skill_input.json"
-    if not normalized_path.exists():
-        raise ValueError(
-            "Cannot recompile: normalized_skill_input.json not found and "
-            "compile_request now requires an explicit skill_id"
-        )
-
-    normalized = json.loads(normalized_path.read_text(encoding="utf-8"))
-    skill_id = normalized.get("skill_id")
-    if not isinstance(skill_id, str) or not skill_id:
-        raise ValueError(f"normalized skill input missing skill_id: {normalized_path}")
-
-    contract_path = run_dir / "skill_contract.json"
-    if contract_path.exists():
-        from .capabilities import CONTRACT_REGISTRY
-
-        contract = json.loads(contract_path.read_text(encoding="utf-8"))
-        CONTRACT_REGISTRY.register(contract["skill_id"], contract)
-
-    return compile_against_skill(resolved_request, skill_id=skill_id, root=root, out_dir=out_dir)
 
 
 def _validate_packet(packet: dict[str, Any], path: Path) -> None:
