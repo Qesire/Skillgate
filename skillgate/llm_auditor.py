@@ -13,6 +13,7 @@ Design principle:
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 from dataclasses import dataclass, field
@@ -36,6 +37,159 @@ class DiscoveredSlot:
     # evidence_status is derived from quote verification; only set on the
     # canonical slot entries emitted by to_skill_input_contract().
     evidence_status: str = "unverified"
+    # ── v3 capability-maximizing fields (Commit 6) ─────────────
+    # importance is the v3 classification: required | quality_amplifier | optional.
+    # It is derived from ``necessity`` when the LLM does not supply it
+    # (so legacy MockLLM fixtures continue to work) but may be set
+    # directly by the new capability-maximizing prompts.
+    importance: str = ""    # required | quality_amplifier | optional ("" → derived)
+    role: str = ""          # v3 role ("" → derived from answer_source)
+    # capability_benefit describes how much providing this input helps the
+    # skill: {accuracy, exploration_reduction, interaction_reduction}, each
+    # in {high, medium, low, none}.  Derived from importance when absent.
+    capability_benefit: dict[str, str] = field(default_factory=dict)
+    # missing_impact is a list of human-readable strings describing what
+    # degrades if this input is absent (exploration cost, error risk, …).
+    missing_impact: list[str] = field(default_factory=list)
+
+
+# ── v3 capability-maximizing derivation helpers ──────────────
+
+
+def _derive_importance(necessity: str, explicit: str = "") -> str:
+    """Derive a v3 ``importance`` from a v2 ``necessity`` (or honor explicit)."""
+    if explicit in ("required", "quality_amplifier", "optional"):
+        return explicit
+    necessity = (necessity or "").strip().lower()
+    if necessity == "required":
+        return "required"
+    if necessity == "optional":
+        return "optional"
+    # "recommended" (and anything else) → quality_amplifier
+    return "quality_amplifier"
+
+
+def _derive_role(answer_source: str, explicit: str = "") -> str:
+    """Derive a v3 ``role`` from a v2 ``answer_source`` (or honor explicit)."""
+    if explicit:
+        return explicit
+    answer_source = (answer_source or "").strip().lower()
+    if answer_source == "human":
+        return "user_intent"
+    if answer_source == "agent":
+        return "environment_fact"
+    if answer_source == "human_or_agent":
+        return "execution_input"
+    if answer_source == "authorization":
+        return "permission"
+    return "execution_input"
+
+
+def _derive_capability_benefit(
+    importance: str, explicit: dict[str, str] | None = None
+) -> dict[str, str]:
+    """Derive ``capability_benefit`` from ``importance`` unless supplied."""
+    if isinstance(explicit, dict) and explicit:
+        # Ensure all three keys present, falling back to derived values.
+        base = _benefit_for_importance(importance)
+        return {
+            "accuracy": explicit.get("accuracy") or base["accuracy"],
+            "exploration_reduction": explicit.get("exploration_reduction")
+            or base["exploration_reduction"],
+            "interaction_reduction": explicit.get("interaction_reduction")
+            or base["interaction_reduction"],
+        }
+    return _benefit_for_importance(importance)
+
+
+def _benefit_for_importance(importance: str) -> dict[str, str]:
+    if importance == "required":
+        return {
+            "accuracy": "high",
+            "exploration_reduction": "high",
+            "interaction_reduction": "medium",
+        }
+    if importance == "quality_amplifier":
+        return {
+            "accuracy": "medium",
+            "exploration_reduction": "medium",
+            "interaction_reduction": "low",
+        }
+    return {
+        "accuracy": "low",
+        "exploration_reduction": "low",
+        "interaction_reduction": "low",
+    }
+
+
+def _derive_missing_impact(
+    slot_name: str,
+    importance: str,
+    missing_policy: str,
+    explicit: list[str] | None = None,
+) -> list[str]:
+    """Derive a ``missing_impact`` list when the LLM does not supply one."""
+    if isinstance(explicit, list) and explicit:
+        return list(explicit)
+    impacts: list[str] = []
+    if importance == "required":
+        impacts.append("skill cannot execute safely without this input")
+    elif importance == "quality_amplifier":
+        impacts.append("skill executes but with reduced quality or broader search")
+    if missing_policy in ("discover_then_ask", "discover_only"):
+        impacts.append("agent must perform broader discovery to compensate")
+    if missing_policy == "block":
+        impacts.append("skill must refuse to proceed")
+    if not impacts:
+        impacts.append("minor degradation; safe default applied")
+    return impacts
+
+
+# ── SkillAuditArtifact (audit process record) ────────────────
+
+
+SKILL_AUDIT_ARTIFACT_VERSION = "skillgate.skill_audit_artifact.v1"
+
+
+@dataclass
+class SkillAuditArtifact:
+    """Audit process record — the source of truth from which a
+    ``SkillInputContract`` (v3) is derived.
+
+    The artifact captures the *process* of auditing a SKILL.md: what was
+    extracted, what slots were derived (with full audit provenance), and the
+    audit metadata (model, prompt version, timestamp, stages).  The
+    ``SkillInputContract`` is a *projection* of this artifact, not an
+    independent object (oracle #10).
+    """
+
+    schema_version: str
+    skill_source: dict[str, Any]            # {path, sha256}
+    extracted: dict[str, Any]               # {activation_triggers, execution_steps, ...}
+    derived_slots: list[dict[str, Any]]     # each slot with full audit provenance
+    audit: dict[str, Any]                   # {model, prompt_version, timestamp, stages}
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "skill_source": dict(self.skill_source),
+            "extracted": dict(self.extracted) if self.extracted else {},
+            "derived_slots": list(self.derived_slots),
+            "audit": dict(self.audit) if self.audit else {},
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), indent=2, ensure_ascii=False, sort_keys=False)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SkillAuditArtifact":
+        return cls(
+            schema_version=data.get("schema_version", SKILL_AUDIT_ARTIFACT_VERSION),
+            skill_source=dict(data.get("skill_source") or {}),
+            extracted=dict(data.get("extracted") or {}),
+            derived_slots=list(data.get("derived_slots") or []),
+            audit=dict(data.get("audit") or {}),
+        )
 
 
 @dataclass
@@ -64,6 +218,11 @@ class DiscoveredContract:
     forbidden_actions: list[DiscoveredSlot] = field(default_factory=list)
     stop_conditions: list[DiscoveredSlot] = field(default_factory=list)
     contract_evidence: list[dict[str, Any]] = field(default_factory=list)
+    # Audit process record (Commit 6).  When set, this is the source of
+    # truth from which ``to_v3_contract()`` is derived.  The v2 projection
+    # (``to_skill_input_contract``) is unaffected for backward compat with
+    # the retained rules engine.
+    audit_artifact: "SkillAuditArtifact | None" = None
 
     # ── backward-compat text views (list[str]) ──────────────
     @property
@@ -188,6 +347,289 @@ class DiscoveredContract:
     def to_builtin_format(self) -> dict[str, Any]:
         return self.to_skill_input_contract()
 
+    # ── v3 capability-maximizing projections (Commit 6) ───────
+
+    def _resolved_importance(self, slot: DiscoveredSlot) -> str:
+        return _derive_importance(slot.necessity, slot.importance)
+
+    def _resolved_role(self, slot: DiscoveredSlot) -> str:
+        return _derive_role(slot.answer_source, slot.role)
+
+    def _all_slot_sections(self) -> list[tuple[str, list[DiscoveredSlot]]]:
+        return [
+            ("slots", self.slots),
+            ("safe_default_slots", self.safe_default_slots),
+            ("safety_blocks", self.safety_blocks),
+            ("authorization_requirements", self.authorization_requirements),
+            ("execution_constraints", self.execution_constraints),
+            ("forbidden_actions", self.forbidden_actions),
+            ("stop_conditions", self.stop_conditions),
+        ]
+
+    def to_v3_contract(self) -> dict[str, Any]:
+        """Derive a v3 ``SkillInputContract`` dict from this discovered contract.
+
+        Uses :func:`build_skill_input_contract_v3` from ``schema.py`` to
+        assemble the canonical v3 shape.  Each input slot carries the
+        capability-maximizing fields (``importance``, ``role``,
+        ``value_schema``, ``acquisition``, ``confirmation``, ``missing``,
+        ``benefit``) derived from the audit.  Safe defaults, execution
+        constraints and forbidden actions become ``execution_policies``;
+        safety blocks, authorization requirements and stop conditions become
+        ``activation_guards``.
+        """
+        from .schema import build_skill_input_contract_v3, EVIDENCE_STATUSES
+
+        evidence_entries: list[dict[str, Any]] = []
+        ev_counter = 0
+
+        def _emit_evidence(slot: DiscoveredSlot) -> list[str]:
+            nonlocal ev_counter
+            ev_ids: list[str] = []
+            for ev in slot.evidence:
+                if not isinstance(ev, dict):
+                    continue
+                ev_counter += 1
+                ev_id = f"ev-{ev_counter:03d}"
+                evidence_entries.append({
+                    "id": ev_id,
+                    "slot_id": slot.name,
+                    "quote": ev.get("quote"),
+                    "rationale": ev.get("rationale"),
+                    "quote_verified": ev.get("quote_verified", False),
+                    "quote_line_start": ev.get("quote_line_start"),
+                    "source_path": self.source_path,
+                })
+                ev_ids.append(ev_id)
+            return ev_ids
+
+        def _v3_value_schema(slot: DiscoveredSlot) -> dict[str, Any]:
+            sid = slot.name.lower()
+            if "scope" in sid or "path" in sid or "file" in sid:
+                return {"type": "path", "cardinality": "many",
+                        "allows_multiple": True, "value_enum": None}
+            if "command" in sid:
+                return {"type": "command", "cardinality": "one",
+                        "allows_multiple": False, "value_enum": None}
+            return {"type": "text", "cardinality": "one",
+                    "allows_multiple": False, "value_enum": None}
+
+        def _v3_acquisition(slot: DiscoveredSlot, importance: str) -> dict[str, Any]:
+            ans = slot.answer_source
+            if ans == "human":
+                allowed = ["user"]
+            elif ans == "agent":
+                allowed = ["local_context"]
+            elif ans == "human_or_agent":
+                allowed = ["user", "local_context"]
+            elif ans == "authorization":
+                allowed = ["user"]
+            else:
+                allowed = ["user"]
+            mp = slot.missing_policy
+            if mp in ("discover_then_ask",):
+                strategy = "discover_then_ask"
+            elif mp == "discover_only":
+                strategy = "discover_then_confirm"
+            elif mp == "assume_default":
+                strategy = "use_default_then_confirm"
+            elif mp == "block":
+                strategy = "ask_user"
+            else:
+                strategy = "ask_user"
+            resolver = "repository_path_search" if allowed == ["local_context"] else None
+            return {"allowed_sources": allowed, "strategy": strategy, "resolver": resolver}
+
+        def _v3_confirmation(slot: DiscoveredSlot) -> dict[str, Any]:
+            mp = slot.missing_policy
+            if mp == "ask_user":
+                policy = "never"
+            elif mp == "discover_then_ask":
+                policy = "if_discovered"
+            elif mp == "discover_only":
+                policy = "if_discovered"
+            elif mp == "assume_default":
+                policy = "if_defaulted"
+            elif mp == "block":
+                policy = "never"
+            else:
+                policy = "always"
+            return {"policy": policy, "prompt": slot.description or None}
+
+        def _v3_missing(slot: DiscoveredSlot) -> dict[str, Any]:
+            mp = slot.missing_policy
+            if mp == "assume_default":
+                return {"policy": "skip"}
+            if mp == "block":
+                return {"policy": "block"}
+            return {"policy": "ask_user"}
+
+        def _v3_benefit(importance: str) -> dict[str, Any]:
+            if importance == "required":
+                return {"reduces_exploration": "high",
+                        "reduces_error_risk": "high"}
+            if importance == "quality_amplifier":
+                return {"reduces_exploration": "medium",
+                        "reduces_error_risk": "medium"}
+            return {"reduces_exploration": "low",
+                    "reduces_error_risk": "low"}
+
+        def _build_input_slot(slot: DiscoveredSlot) -> dict[str, Any]:
+            importance = self._resolved_importance(slot)
+            return {
+                "id": slot.name,
+                "description": slot.description,
+                "importance": importance,
+                "role": self._resolved_role(slot),
+                "value_schema": _v3_value_schema(slot),
+                "acquisition": _v3_acquisition(slot, importance),
+                "confirmation": _v3_confirmation(slot),
+                "missing": _v3_missing(slot),
+                "benefit": _v3_benefit(importance),
+                "evidence_ids": _emit_evidence(slot),
+                # v2 compat fields (used by the v3→v2 engine adapter):
+                "answer_source": slot.answer_source,
+                "support": slot.support,
+                "confidence": round(slot.confidence, 4),
+                "evidence_status": slot.evidence_status
+                if slot.evidence_status in EVIDENCE_STATUSES
+                else "unverified",
+            }
+
+        # Only the three input-slot sections become ``slots[]``.  The other
+        # sections become execution_policies / activation_guards.
+        v3_slots: list[dict[str, Any]] = []
+        for slot in self.slots:
+            v3_slots.append(_build_input_slot(slot))
+        # safe_default_slots are NOT slots (oracle #8) — they become policies.
+
+        def _policy(slot: DiscoveredSlot, category: str) -> dict[str, Any]:
+            return {
+                "id": slot.name,
+                "text": slot.description,
+                "enforcement": "advisory",
+                "category": category,
+                "evidence_ids": _emit_evidence(slot),
+            }
+
+        execution_policies: list[dict[str, Any]] = []
+        for s in self.execution_constraints:
+            execution_policies.append(_policy(s, "execution_constraint"))
+        for s in self.safe_default_slots:
+            execution_policies.append(_policy(s, "safe_default"))
+        for s in self.forbidden_actions:
+            execution_policies.append(_policy(s, "forbidden_action"))
+
+        def _guard(slot: DiscoveredSlot, guard_type: str) -> dict[str, Any]:
+            return {
+                "id": slot.name,
+                "text": slot.description,
+                "type": guard_type,
+                "evidence_ids": _emit_evidence(slot),
+            }
+
+        activation_guards: list[dict[str, Any]] = []
+        for s in self.safety_blocks:
+            activation_guards.append(_guard(s, "safety_block"))
+        for s in self.authorization_requirements:
+            activation_guards.append(_guard(s, "authorization_required"))
+        for s in self.stop_conditions:
+            activation_guards.append(_guard(s, "stop_condition"))
+
+        return build_skill_input_contract_v3(
+            skill_id=self.skill_id,
+            skill_name=self.skill_name,
+            skill_version=self.skill_version,
+            skill_description=self.skill_description or self.skill_name,
+            source_path=self.source_path,
+            source_sha256=self.source_sha256,
+            slots=v3_slots,
+            execution_policies=execution_policies,
+            activation_guards=activation_guards,
+            contract_evidence=evidence_entries or self.contract_evidence,
+        )
+
+    def to_audit_artifact(
+        self,
+        *,
+        extracted: dict[str, Any] | None = None,
+        stages: list[dict[str, Any]] | None = None,
+        model: str | None = None,
+        prompt_version: str = "v0.4-capability-maximizing",
+        timestamp: str | None = None,
+    ) -> SkillAuditArtifact:
+        """Build a ``SkillAuditArtifact`` (audit process record) from this contract.
+
+        The artifact is the source of truth; the v3 contract is a projection.
+        ``derived_slots`` carries full audit provenance for every slot section
+        (importance, role, capability_benefit, missing_impact, evidence, …).
+        """
+        derived: list[dict[str, Any]] = []
+
+        def _derive(slot: DiscoveredSlot, section: str) -> dict[str, Any]:
+            importance = self._resolved_importance(slot)
+            role = self._resolved_role(slot)
+            benefit = _derive_capability_benefit(importance, slot.capability_benefit)
+            missing_impact = _derive_missing_impact(
+                slot.name, importance, slot.missing_policy, slot.missing_impact
+            )
+            evidence = []
+            for ev in slot.evidence:
+                if isinstance(ev, dict):
+                    evidence.append({
+                        "quote": ev.get("quote"),
+                        "quote_verified": ev.get("quote_verified", False),
+                        "quote_line_start": ev.get("quote_line_start"),
+                        "source_path": self.source_path,
+                    })
+            return {
+                "slot_id": slot.name,
+                "description": slot.description,
+                "section": section,
+                "importance": importance,
+                "role": role,
+                "value_schema": None,
+                "acquisition": {
+                    "strategy": slot.missing_policy,
+                    "resolver": None,
+                },
+                "confirmation": {"policy": None},
+                "missing": {"policy": slot.missing_policy},
+                "capability_benefit": benefit,
+                "missing_impact": missing_impact,
+                "derived_from": [],
+                "rationale": (
+                    slot.evidence[0].get("rationale")
+                    if slot.evidence and isinstance(slot.evidence[0], dict)
+                    else ""
+                ),
+                "evidence": evidence,
+                "support": slot.support,
+                "confidence": round(slot.confidence, 4),
+                "answer_source": slot.answer_source,
+            }
+
+        for section_name, section_slots in self._all_slot_sections():
+            for slot in section_slots:
+                derived.append(_derive(slot, section_name))
+
+        audit: dict[str, Any] = {
+            "model": model,
+            "prompt_version": prompt_version,
+            "timestamp": timestamp or datetime.datetime.utcnow().isoformat() + "Z",
+            "stages": stages or [],
+        }
+        return SkillAuditArtifact(
+            schema_version=SKILL_AUDIT_ARTIFACT_VERSION,
+            skill_source={
+                "path": self.source_path,
+                "sha256": self.source_sha256,
+            },
+            extracted=extracted or {},
+            derived_slots=derived,
+            audit=audit,
+        )
+
     @classmethod
     def from_llm_output(cls, raw_parsed: dict[str, Any]) -> dict[str, Any]:
         """Build a canonical ``SkillInputContract`` from the LLM's raw parsed output.
@@ -219,21 +661,49 @@ def _coerce_slot(value: Any) -> DiscoveredSlot:
             confidence=0.5,
         )
     if isinstance(value, dict):
-        return DiscoveredSlot(
-            name=value.get("name") or value.get("id", "unknown"),
-            description=value.get("description") or value.get("text", ""),
-            necessity=value.get("necessity", "recommended"),
-            answer_source=value.get("answer_source", "policy_default"),
-            missing_policy=value.get("missing_policy", "assume_default"),
-            support=value.get("support", "recommended"),
-            confidence=float(value.get("confidence", 0.5)),
-            evidence=value.get("evidence", []),
-            evidence_status=value.get("evidence_status", "unverified"),
-        )
+        return _slot_from_raw(value)
     return DiscoveredSlot(
         name="unknown", description="", necessity="recommended",
         answer_source="policy_default", missing_policy="assume_default",
         support="recommended", confidence=0.5,
+    )
+
+
+def _slot_from_raw(raw: dict[str, Any]) -> DiscoveredSlot:
+    """Build a ``DiscoveredSlot`` from a raw LLM slot dict, populating the
+    v3 capability-maximizing fields (importance, role, capability_benefit,
+    missing_impact) either from explicit LLM-supplied values or by derivation
+    from the v2 fields.  This keeps legacy MockLLM fixtures working: they do
+    not carry the new fields, so we derive them here.
+    """
+    necessity = raw.get("necessity", "recommended")
+    answer_source = raw.get("answer_source", "policy_default")
+    missing_policy = raw.get("missing_policy", "ask_user")
+    importance = _derive_importance(necessity, raw.get("importance", ""))
+    role = _derive_role(answer_source, raw.get("role", ""))
+    capability_benefit = _derive_capability_benefit(
+        importance, raw.get("capability_benefit")
+    )
+    missing_impact = _derive_missing_impact(
+        raw.get("name", "unknown"),
+        importance,
+        missing_policy,
+        raw.get("missing_impact"),
+    )
+    return DiscoveredSlot(
+        name=raw.get("name") or raw.get("id", "unknown"),
+        description=raw.get("description") or raw.get("text", ""),
+        necessity=necessity,
+        answer_source=answer_source,
+        missing_policy=missing_policy,
+        support=raw.get("support", "recommended"),
+        confidence=float(raw.get("confidence", 0.5)),
+        evidence=raw.get("evidence", []),
+        evidence_status=raw.get("evidence_status", "unverified"),
+        importance=importance,
+        role=role,
+        capability_benefit=capability_benefit,
+        missing_impact=missing_impact,
     )
 
 
@@ -257,17 +727,7 @@ def _build_discovered_contract_from_slots(
         if not isinstance(raw, dict):
             continue
         ans = raw.get("answer_source", "human")
-        slot = DiscoveredSlot(
-            name=raw.get("name", "unknown"),
-            description=raw.get("description", ""),
-            necessity=raw.get("necessity", "recommended"),
-            answer_source=ans,
-            missing_policy=raw.get("missing_policy", "ask_user"),
-            support=raw.get("support", "guessed"),
-            confidence=float(raw.get("confidence", 0.5)),
-            evidence=raw.get("evidence", []),
-            evidence_status=raw.get("evidence_status", "unverified"),
-        )
+        slot = _slot_from_raw(raw)
         if ans == "policy_default":
             safe_defaults.append(slot)
         elif ans == "blocked":
