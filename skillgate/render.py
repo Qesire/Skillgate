@@ -98,7 +98,12 @@ def render_normalized_skill_input(raw_request: str, analysis: Any, *, task_root:
         lines.append("> These are codebase facts. The agent should discover them through read-only exploration.")
         lines.append("")
         for slot in agent_discoverable:
-            lines.append(f"- {_slot_text(slot)}")
+            on_fail = slot.get("on_discovery_failure")
+            if on_fail:
+                lines.append(f"- {_slot_text(slot)}")
+                lines.append(f"  - On discovery failure: {on_fail}")
+            else:
+                lines.append(f"- {_slot_text(slot)}")
         lines.append("")
 
     # ── Safe defaults ──

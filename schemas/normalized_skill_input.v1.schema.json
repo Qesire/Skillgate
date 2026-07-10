@@ -180,6 +180,12 @@
           "minLength": 1,
           "type": "string"
         },
+        "on_discovery_failure": {
+          "enum": [
+            "ask_user",
+            "report_unresolved"
+          ]
+        },
         "question": {
           "oneOf": [
             {

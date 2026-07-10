@@ -552,6 +552,7 @@ def _slot_entry_schema() -> dict[str, Any]:
             "missing_policy": {"enum": sorted(MISSING_POLICIES)},
             "confidence": _confidence(),
             "evidence_status": {"enum": ["verified", "partially_verified", "unverified"]},
+            "evidence_ids": {"type": "array", "items": _nonempty_string()},
         },
     }
 
@@ -605,6 +606,7 @@ def _input_slot_state_schema() -> dict[str, Any]:
                 "maxItems": 2,
             },
             "conflict": {"type": "boolean"},
+            "on_discovery_failure": {"enum": ["ask_user", "report_unresolved"]},
         },
     }
 

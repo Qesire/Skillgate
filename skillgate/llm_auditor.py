@@ -53,6 +53,8 @@ class DiscoveredContract:
     skill_name: str = ""
     skill_version: str = "1.0.0"
     skill_description: str = ""
+    source_path: str | None = None
+    source_sha256: str | None = None
     activation: dict[str, Any] = field(default_factory=dict)  # {triggers: [...], anti_triggers: [...]}
     slots: list[DiscoveredSlot] = field(default_factory=list)
     safe_default_slots: list[DiscoveredSlot] = field(default_factory=list)
@@ -61,6 +63,7 @@ class DiscoveredContract:
     execution_constraints: list[DiscoveredSlot] = field(default_factory=list)
     forbidden_actions: list[DiscoveredSlot] = field(default_factory=list)
     stop_conditions: list[DiscoveredSlot] = field(default_factory=list)
+    contract_evidence: list[dict[str, Any]] = field(default_factory=list)
 
     # ── backward-compat text views (list[str]) ──────────────
     @property
@@ -110,9 +113,28 @@ class DiscoveredContract:
         required: list[dict[str, Any]] = []
         ask_if_missing: list[dict[str, Any]] = []
         discover_if_missing: list[dict[str, Any]] = []
+        evidence_entries: list[dict[str, Any]] = []
+        ev_counter = 0
 
         def _entry(s: DiscoveredSlot, category: str) -> dict[str, Any]:
-            return {
+            nonlocal ev_counter
+            ev_ids: list[str] = []
+            for ev in s.evidence:
+                if not isinstance(ev, dict):
+                    continue
+                ev_counter += 1
+                ev_id = f"ev-{ev_counter:03d}"
+                evidence_entries.append({
+                    "id": ev_id,
+                    "slot_id": s.name,
+                    "quote": ev.get("quote"),
+                    "rationale": ev.get("rationale"),
+                    "quote_verified": ev.get("quote_verified", False),
+                    "quote_line_start": ev.get("quote_line_start"),
+                    "source_path": self.source_path,
+                })
+                ev_ids.append(ev_id)
+            entry: dict[str, Any] = {
                 "id": s.name,
                 "text": s.description,
                 "category": category,
@@ -122,6 +144,9 @@ class DiscoveredContract:
                 "confidence": round(s.confidence, 4),
                 "evidence_status": s.evidence_status if s.evidence_status in EVIDENCE_STATUSES else "unverified",
             }
+            if ev_ids:
+                entry["evidence_ids"] = ev_ids
+            return entry
 
         for s in self.slots:
             cat = category_map.get(s.answer_source, "human_askable")
@@ -145,6 +170,8 @@ class DiscoveredContract:
             skill_name=self.skill_name,
             skill_version=self.skill_version,
             skill_description=self.skill_description or self.skill_name,
+            source_path=self.source_path,
+            source_sha256=self.source_sha256,
             required_slots=required,
             ask_if_missing=ask_if_missing,
             discover_if_missing=discover_if_missing,
@@ -154,6 +181,7 @@ class DiscoveredContract:
             execution_constraints=execution_constraints,
             forbidden_actions=forbidden_actions,
             stop_conditions=stop_conditions,
+            contract_evidence=evidence_entries or self.contract_evidence,
         )
 
     # Backward-compat alias for older callers / tests.
@@ -763,6 +791,10 @@ def audit_skill_file_with_llm(
         skill_id_hint = path.stem.lower() if path.stem != "SKILL" else path.parent.name.lower().replace(" ", "_")
 
     contract = audit_skill_with_llm(content, llm, skill_id_hint=skill_id_hint)
+    # Record source provenance so the YAML roundtrip carries it.
+    import hashlib
+    contract.source_path = str(path)
+    contract.source_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
 
     # Final deterministic verification of evidence quotes against the source
     # file, applied to EVERY slot section (not just normal slots).  Safety

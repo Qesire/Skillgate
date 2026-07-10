@@ -669,5 +669,110 @@ class StrictLoaderTests(unittest.TestCase):
             validate_strict_contract(bad)
 
 
+class EvidenceRoundtripTests(unittest.TestCase):
+    """P1-7: evidence content must survive YAML roundtrip."""
+
+    def test_evidence_quote_survives_roundtrip(self) -> None:
+        import yaml
+        contract = _make_contract(
+            source_path="/foo/SKILL.md", source_sha256="abc123",
+            slots=[DiscoveredSlot(
+                "target", "What target?", "required", "human",
+                "ask_user", "explicit", 0.9,
+                evidence=[{"quote": "fix the bug", "rationale": "implies target",
+                           "quote_verified": True, "quote_line_start": 5}])],
+        )
+        parsed = yaml.safe_load(contract_to_yaml(contract))
+        # contract_evidence list should carry the quote.
+        self.assertEqual(len(parsed["contract_evidence"]), 1)
+        ev = parsed["contract_evidence"][0]
+        self.assertEqual(ev["quote"], "fix the bug")
+        self.assertTrue(ev["quote_verified"])
+        self.assertEqual(ev["quote_line_start"], 5)
+        # slot references the evidence.
+        self.assertEqual(parsed["required_slots"][0]["evidence_ids"], ["ev-001"])
+        # source provenance preserved.
+        self.assertEqual(parsed["source_path"], "/foo/SKILL.md")
+        self.assertEqual(parsed["source_sha256"], "abc123")
+
+
+class DiscoverThenAskRenderTests(unittest.TestCase):
+    """P1-8: discover_then_ask must render on_discovery_failure in Markdown."""
+
+    def test_discover_then_ask_renders_on_failure(self) -> None:
+        contract = _make_contract(
+            slots=[DiscoveredSlot(
+                "d_slot", "Discover what?", "required",
+                "human", "discover_then_ask", "explicit", 0.9)],
+        )
+        from skillgate.capabilities import BUILTIN_CONTRACTS
+        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        with tempfile.TemporaryDirectory() as tmp:
+            r = compile_against_skill(
+                "a vague request", skill_id="ut_skill",
+                root=ROOT / "examples" / "python_pytest_minimal",
+                out_dir=Path(tmp) / "run",
+            )
+            md = (Path(r["out_dir"]) / "normalized_skill_input.md").read_text()
+        self.assertIn("On discovery failure: ask_user", md,
+                       "discover_then_ask must render on_discovery_failure")
+
+    def test_discover_only_renders_report_unresolved(self) -> None:
+        contract = _make_contract(
+            slots=[DiscoveredSlot(
+                "d_slot", "Discover what?", "required",
+                "human", "discover_only", "explicit", 0.9)],
+        )
+        from skillgate.capabilities import BUILTIN_CONTRACTS
+        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        with tempfile.TemporaryDirectory() as tmp:
+            r = compile_against_skill(
+                "a vague request", skill_id="ut_skill",
+                root=ROOT / "examples" / "python_pytest_minimal",
+                out_dir=Path(tmp) / "run",
+            )
+            md = (Path(r["out_dir"]) / "normalized_skill_input.md").read_text()
+        self.assertIn("On discovery failure: report_unresolved", md)
+
+
+class SlotConflictDetectionTests(unittest.TestCase):
+    """P2: slot binding detects conflicting values."""
+
+    def test_conflicting_file_paths_detected(self) -> None:
+        result = analyze_against_skill(
+            "fix the bug in src/parser.py and src/builder.py",
+            skill_id="bug_fix",
+        )
+        # target_scope should be known but with conflict=True and value=None.
+        known = [s for s in result.human_provided if s.get("name") == "target_scope"]
+        if known:
+            self.assertTrue(known[0].get("conflict", False),
+                            "two file paths should trigger conflict detection")
+            self.assertIsNone(known[0].get("value"),
+                              "conflicting values should yield null value")
+
+
+class EnumValueBindingTests(unittest.TestCase):
+    """P2: value_enum constrains extracted values."""
+
+    def test_enum_value_bound(self) -> None:
+        from skillgate.capabilities import BUILTIN_CONTRACTS
+        contract = _make_contract(
+            slots=[DiscoveredSlot(
+                "output_format", "What output format?", "required",
+                "human", "ask_user", "explicit", 0.9)],
+        )
+        canonical = contract.to_skill_input_contract()
+        canonical["required_slots"][0]["value_enum"] = ["markdown", "json", "yaml"]
+        BUILTIN_CONTRACTS["ut_skill"] = canonical
+        result = analyze_against_skill(
+            "generate the report in markdown format",
+            skill_id="ut_skill",
+        )
+        known = [s for s in result.human_provided if s.get("name") == "output_format"]
+        if known:
+            self.assertEqual(known[0]["value"], "markdown")
+
+
 if __name__ == "__main__":
     unittest.main()

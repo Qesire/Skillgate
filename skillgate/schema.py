@@ -409,6 +409,7 @@ def build_input_slot_state(
     value_source: str | None = None,
     value_source_span: list[int] | None = None,
     conflict: bool = False,
+    on_discovery_failure: str | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "schema_version": INPUT_SLOT_STATE_VERSION,
@@ -438,6 +439,8 @@ def build_input_slot_state(
         result["value_source_span"] = value_source_span
     if conflict:
         result["conflict"] = True
+    if on_discovery_failure is not None:
+        result["on_discovery_failure"] = on_discovery_failure
     return result
 
 

@@ -660,11 +660,13 @@ def _evaluate_slot(
             value=binding["value"],
             answer_source=answer_source,
             support=support,
-            handling_reason="Request or context provides this information.",
-            confidence=confidence,
+            handling_reason="Request or context provides this information." if not binding["conflict"]
+                else "Conflicting values detected; value is null pending user disambiguation.",
+            confidence=binding["confidence"],
             missing_policy=missing_policy,
             value_source=binding["source"],
             value_source_span=binding["source_span"],
+            conflict=binding["conflict"],
         )
 
     # Slot is NOT filled — missing_policy takes strict priority over the
@@ -685,11 +687,13 @@ def _evaluate_slot(
             confidence=confidence, missing_policy=missing_policy,
         )
     if policy in ("discover_only", "discover_then_ask"):
+        on_fail = "ask_user" if policy == "discover_then_ask" else "report_unresolved"
         return build_input_slot_state(
             name=slot_id, description=text, category="agent_discoverable", status="agent_discoverable",
             answer_source=answer_source, support=support,
             handling_reason=f"Slot '{slot_id}' routed to discovery by missing_policy.",
             confidence=confidence, missing_policy=missing_policy,
+            on_discovery_failure=on_fail,
         )
     # No overriding policy (or ask_user) — fall back to category-based routing.
     return build_input_slot_state(
@@ -937,25 +941,30 @@ def _bind_slot(
 
     Returns a binding dict:
       {"filled": bool, "value": str|None, "source": str|None,
-       "source_span": [start, end]|None, "confidence": float}
+       "source_span": [start, end]|None, "confidence": float,
+       "candidates": list[str], "conflict": bool}
 
     This upgrades slot evaluation from presence detection to value binding:
     when a slot is filled, we record WHAT value was bound, WHERE in the
-    request it came from (character span), and a confidence.  Conflict
-    detection (multiple differing values) is reported via the caller.
+    request it came from (character span), a confidence, the full candidate
+    set, and whether there are conflicting values.  When a slot declares
+    ``value_enum``, only values in that enum are accepted.
     """
     if not _slot_is_filled(slot, raw_request, context):
         return {"filled": False, "value": None, "source": None,
-                "source_span": None, "confidence": slot.get("confidence", 1.0)}
+                "source_span": None, "confidence": slot.get("confidence", 1.0),
+                "candidates": [], "conflict": False}
 
     slot_id = slot["id"]
     slot_text = slot.get("text", "")
     lower = raw_request.lower()
+    value_enum = slot.get("value_enum")  # optional: list of allowed values
 
     # Value extraction heuristics, ordered by specificity.
     value: str | None = None
     source = "user_request"
     span: list[int] | None = None
+    candidates: list[str] = []
 
     # Explicit clarification answer: highest-confidence value.
     answers = _clarification_answers_by_question(raw_request)
@@ -963,19 +972,39 @@ def _bind_slot(
         value = answers[slot_text]
         source = "clarification_answer"
 
+    # Enum-based extraction: if the slot declares value_enum, search for any
+    # enum member in the request (case-insensitive), collecting all as candidates.
+    if value is None and value_enum and isinstance(value_enum, list):
+        for candidate in value_enum:
+            cand_lower = candidate.lower()
+            idx = lower.find(cand_lower)
+            if idx != -1:
+                candidates.append(candidate)
+                if value is None:
+                    value = raw_request[idx: idx + len(candidate)]
+                    span = [idx, idx + len(candidate)]
+        if candidates and len(set(c.lower() for c in candidates)) > 1:
+            # Multiple different enum members present → conflict.
+            return {"filled": True, "value": None, "source": source,
+                    "source_span": None, "confidence": 0.5,
+                    "candidates": candidates, "conflict": True}
+
     # File-path-like values for target slots.
     if value is None and slot_id in (
         "target_scope", "target_document", "review_target", "failing_test_target",
     ):
-        m = re.search(r"(?<![\w./-])(?:[\w.-]+/)+[\w.-]+\.[A-Za-z0-9]+", raw_request)
-        if m:
-            value = m.group(0)
-            span = [m.start(), m.end()]
-        elif re.search(r"\btest_\w+", lower):
-            m = re.search(r"\btest_\w+", raw_request)
-            if m:
-                value = m.group(0)
-                span = [m.start(), m.end()]
+        all_matches = re.findall(r"(?<![\w./-])(?:[\w.-]+/)+[\w.-]+\.[A-Za-z0-9]+", raw_request)
+        if not all_matches:
+            all_matches = re.findall(r"\btest_\w+", raw_request)
+        if all_matches:
+            candidates = list(dict.fromkeys(all_matches))  # dedupe, preserve order
+            value = all_matches[0]
+            m = re.search(re.escape(value), raw_request) if value else None
+            span = [m.start(), m.end()] if m else None
+            if len(set(all_matches)) > 1:
+                return {"filled": True, "value": None, "source": source,
+                        "source_span": None, "confidence": 0.5,
+                        "candidates": candidates, "conflict": True}
 
     # Test/build command values.
     if value is None and slot_id in (
@@ -1017,7 +1046,8 @@ def _bind_slot(
             source = "context_or_request"
 
     return {"filled": True, "value": value, "source": source,
-            "source_span": span, "confidence": slot.get("confidence", 1.0)}
+            "source_span": span, "confidence": slot.get("confidence", 1.0),
+            "candidates": candidates, "conflict": False}
 
 
 def _clarification_answers_by_question(raw_request: str) -> dict[str, str]:
@@ -1140,6 +1170,9 @@ def _rebuild_state_for_policy(
         confidence=slot.get("confidence", 1.0),
         missing_policy=slot.get("missing_policy"),
         evidence_status=slot.get("evidence_status"),
+        on_discovery_failure=("ask_user" if slot.get("missing_policy") == "discover_then_ask"
+                              else "report_unresolved" if slot.get("missing_policy") == "discover_only"
+                              else None),
     )
 
 
@@ -1149,11 +1182,13 @@ def _build_slot_state(slot: dict[str, Any], raw_request: str, status: str) -> di
     value = None
     value_source = None
     value_span = None
+    conflict = False
     if status == "known":
         binding = _bind_slot(slot, raw_request, None)
         value = binding["value"]
         value_source = binding["source"]
         value_span = binding["source_span"]
+        conflict = binding["conflict"]
     return build_input_slot_state(
         name=slot["id"],
         description=slot["text"],
@@ -1169,6 +1204,7 @@ def _build_slot_state(slot: dict[str, Any], raw_request: str, status: str) -> di
         missing_policy=slot.get("missing_policy"),
         value_source=value_source,
         value_source_span=value_span,
+        conflict=conflict,
     )
 
 
