@@ -68,6 +68,11 @@ def main(argv: list[str] | None = None) -> None:
     # ── apply-patch ──────────────────────────────────────
     _register_apply_patch(subparsers)
 
+    # ── discovery ─────────────────────────────────────────
+    _register_discovery_plan(subparsers)
+    _register_discover(subparsers)
+    _register_apply_discovery(subparsers)
+
     # ── schemas ───────────────────────────────────────────
     _register_schemas(subparsers)
 
@@ -85,6 +90,9 @@ def main(argv: list[str] | None = None) -> None:
         "answer-batch": _cmd_answer_batch,
         "recompile": _cmd_recompile,
         "apply-patch": _cmd_apply_patch,
+        "discovery-plan": _cmd_discovery_plan,
+        "discover": _cmd_discover,
+        "apply-discovery": _cmd_apply_discovery,
         "schemas": _cmd_schemas,
     }
     dispatcher[args.command](args)
@@ -471,6 +479,75 @@ def _cmd_apply_patch(args: argparse.Namespace) -> None:
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
+
+
+
+# ── discovery ──────────────────────────────────────────────────
+
+
+def _register_discovery_plan(subparsers: argparse._SubParsersAction) -> None:
+    p = subparsers.add_parser("discovery-plan", help="Print a discovery plan for a draft.")
+    p.add_argument("run_dir", help="Run directory containing draft.json")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
+
+def _cmd_discovery_plan(args: argparse.Namespace) -> None:
+    from .draft import load_draft
+    from .discovery import build_discovery_plan
+
+    draft = load_draft(Path(args.run_dir))
+    plan = build_discovery_plan(draft)
+    print(json.dumps(plan, ensure_ascii=False, indent=2))
+
+
+def _register_discover(subparsers: argparse._SubParsersAction) -> None:
+    p = subparsers.add_parser("discover", help="Run local discovery and update the draft.")
+    p.add_argument("run_dir", help="Run directory containing draft.json")
+    p.add_argument("--root", default=".", help="Repository root for filesystem discovery")
+
+
+def _cmd_discover(args: argparse.Namespace) -> None:
+    from .draft import load_draft, save_draft
+    from .discovery import run_discovery, apply_discovery_to_draft
+
+    run_dir = Path(args.run_dir)
+    draft = load_draft(run_dir)
+    result = run_discovery(draft, Path(args.root))
+    draft = apply_discovery_to_draft(draft, result)
+    save_draft(run_dir, draft)
+    summary = {
+        "status": draft["status"],
+        "results": {
+            sid: {"status": r.get("status"), "value": r.get("value")}
+            for sid, r in result.get("results", {}).items()
+        },
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+
+
+def _register_apply_discovery(subparsers: argparse._SubParsersAction) -> None:
+    p = subparsers.add_parser("apply-discovery", help="Apply an external discovery result to a draft.")
+    p.add_argument("run_dir", help="Run directory containing draft.json")
+    p.add_argument("result_file", help="JSON file with discovery results")
+
+
+def _cmd_apply_discovery(args: argparse.Namespace) -> None:
+    from .draft import load_draft, save_draft
+    from .discovery import apply_discovery_to_draft
+
+    run_dir = Path(args.run_dir)
+    result = json.loads(Path(args.result_file).read_text(encoding="utf-8"))
+    draft = load_draft(run_dir)
+    draft = apply_discovery_to_draft(draft, result)
+    save_draft(run_dir, draft)
+    summary = {
+        "status": draft["status"],
+        "slots": {
+            sid: {"state": s["state"], "confirmed": s["confirmed"]}
+            for sid, s in draft.get("slots", {}).items()
+        },
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
 
 # ── schemas ───────────────────────────────────────────────────
 
