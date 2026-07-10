@@ -32,7 +32,7 @@ class CoreCliTests(unittest.TestCase):
         output = StringIO()
 
         with redirect_stdout(output):
-            cli_main(["audit-skill", str(BUG_FIX_SKILL), "--json"])
+            cli_main(["audit-skill", str(BUG_FIX_SKILL), "--json", "--rules-only"])
 
         contract = json.loads(output.getvalue())
         self.assertEqual(SKILL_INPUT_CONTRACT_VERSION, contract["schema_version"])
@@ -44,7 +44,7 @@ class CoreCliTests(unittest.TestCase):
             output_path = Path(tmp) / "SKILL.input.yaml"
 
             with redirect_stdout(StringIO()):
-                cli_main(["audit-skill", str(BUG_FIX_SKILL), "--write", str(output_path)])
+                cli_main(["audit-skill", str(BUG_FIX_SKILL), "--write", str(output_path), "--rules-only"])
 
             contract = yaml.safe_load(output_path.read_text(encoding="utf-8"))
             self.assertEqual(SKILL_INPUT_CONTRACT_VERSION, contract["schema_version"])

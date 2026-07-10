@@ -112,7 +112,7 @@ class LLMYamlRoundtripTests(unittest.TestCase):
 
         # Compile against the reloaded contract.
         import skillgate.capabilities as cap
-        cap.BUILTIN_CONTRACTS["ut_skill"] = reloaded
+        cap.CONTRACT_REGISTRY.register("ut_skill", reloaded)
         with tempfile.TemporaryDirectory() as tmp:
             r = compile_against_skill("do the thing", skill_id="ut_skill",
                                       root=Path(tmp), out_dir=Path(tmp) / "run")
@@ -129,7 +129,8 @@ class LLMYamlRoundtripTests(unittest.TestCase):
         )
         parsed = yaml.safe_load(contract_to_yaml(contract))
         self.assertEqual(len(parsed["safety_blocks"]), 1)
-        self.assertEqual(len(parsed["block_if"]), 1)
+        # block_if is no longer emitted in canonical v2 output; safety_blocks
+        # is the authoritative section.
 
 
 class MissingPolicyTests(unittest.TestCase):
@@ -143,9 +144,9 @@ class MissingPolicyTests(unittest.TestCase):
                 answer_source, missing_policy, "explicit", 0.9,
             )],
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
+        from skillgate.capabilities import CONTRACT_REGISTRY
         canonical = contract.to_skill_input_contract()
-        BUILTIN_CONTRACTS["ut_skill"] = canonical
+        CONTRACT_REGISTRY.register("ut_skill", canonical)
         return canonical
 
     def test_missing_policy_block_routes_to_blocked(self) -> None:
@@ -206,8 +207,8 @@ class ForbiddenActionsTests(unittest.TestCase):
                 "fab_claims", "Fabricating unsupported project claims", "recommended",
                 "blocked", "block", "recommended", 0.9)],
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
-        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        from skillgate.capabilities import CONTRACT_REGISTRY
+        CONTRACT_REGISTRY.register("ut_skill", contract.to_skill_input_contract())
         # A normal request mentions "claims" but does not ask to fabricate.
         result = analyze_against_skill("review the claims in the docs", skill_id="ut_skill")
         self.assertNotEqual(result.decision_kind, "block_unsafe",
@@ -223,8 +224,8 @@ class ForbiddenActionsTests(unittest.TestCase):
                 "fab_claims", "Fabricating unsupported project claims", "recommended",
                 "blocked", "block", "recommended", 0.9)],
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
-        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        from skillgate.capabilities import CONTRACT_REGISTRY
+        CONTRACT_REGISTRY.register("ut_skill", contract.to_skill_input_contract())
         result = analyze_against_skill(
             "please invent benchmark metrics and fabricate adoption claims",
             skill_id="ut_skill",
@@ -260,8 +261,8 @@ class FailClosedEvidenceTests(unittest.TestCase):
                 "block", "guessed", 0.0,  # confidence 0 -> unverified
             )],
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
-        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        from skillgate.capabilities import CONTRACT_REGISTRY
+        CONTRACT_REGISTRY.register("ut_skill", contract.to_skill_input_contract())
         result = analyze_against_skill("a request", skill_id="ut_skill")
         # The unverified blocked slot should be extracted to low_confidence,
         # NOT cause a block_unsafe.
@@ -306,8 +307,8 @@ class SlotValueBindingTests(unittest.TestCase):
                 "output_format", "What output format should be used?",
                 "required", "human", "ask_user", "recommended", 0.9)],
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
-        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        from skillgate.capabilities import CONTRACT_REGISTRY
+        CONTRACT_REGISTRY.register("ut_skill", contract.to_skill_input_contract())
         result = analyze_against_skill("What should I change?", skill_id="ut_skill")
         # The slot should remain human_askable (not falsely filled).
         self.assertTrue(any(s.get("name") == "output_format"
@@ -380,8 +381,8 @@ class SafetyBlockConfidenceFilterTests(unittest.TestCase):
                                           "recommended", "blocked", "block",
                                           "guessed", 0.0)],  # confidence=0
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
-        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        from skillgate.capabilities import CONTRACT_REGISTRY
+        CONTRACT_REGISTRY.register("ut_skill", contract.to_skill_input_contract())
         # Request mentions "secret" but the safety_block has confidence=0
         result = analyze_against_skill("dump the secret tokens", skill_id="ut_skill")
         self.assertNotEqual(result.decision_kind, "block_unsafe",
@@ -396,8 +397,8 @@ class MissingPolicyStateRebuildTests(unittest.TestCase):
             slots=[DiscoveredSlot("policy_slot", "What value?", "required",
                                   "human", "assume_default", "explicit", 0.9)],
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
-        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        from skillgate.capabilities import CONTRACT_REGISTRY
+        CONTRACT_REGISTRY.register("ut_skill", contract.to_skill_input_contract())
         result = analyze_against_skill("a vague request", skill_id="ut_skill")
         # The slot should be in safe_assumptions with status=safe_assumption
         sa = [s for s in result.safe_assumptions if s.get("name") == "policy_slot"]
@@ -416,8 +417,8 @@ class MissingPolicyStateRebuildTests(unittest.TestCase):
             slots=[DiscoveredSlot("d_slot", "Discover what?", "required",
                                   "human", "discover_then_ask", "explicit", 0.9)],
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
-        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        from skillgate.capabilities import CONTRACT_REGISTRY
+        CONTRACT_REGISTRY.register("ut_skill", contract.to_skill_input_contract())
         result = analyze_against_skill("a vague request", skill_id="ut_skill")
         ad = [s for s in result.agent_discoverable if s.get("name") == "d_slot"]
         self.assertTrue(ad, "discover_then_ask should route to agent_discoverable")
@@ -433,8 +434,8 @@ class MissingPolicyStateRebuildTests(unittest.TestCase):
                                                "recommended", "policy_default",
                                                "assume_default", "recommended", 0.9)],
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
-        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        from skillgate.capabilities import CONTRACT_REGISTRY
+        CONTRACT_REGISTRY.register("ut_skill", contract.to_skill_input_contract())
         result = analyze_against_skill("a vague request", skill_id="ut_skill")
         self.assertEqual(result.decision_kind, "block_unsafe",
                          "missing_policy=block must take priority over safe-default coverage")
@@ -579,8 +580,8 @@ class P0BlockedSchemaValidTests(unittest.TestCase):
                 "fab_claims", "Fabricating unsupported project claims", "recommended",
                 "blocked", "block", "recommended", 0.9)],
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
-        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        from skillgate.capabilities import CONTRACT_REGISTRY
+        CONTRACT_REGISTRY.register("ut_skill", contract.to_skill_input_contract())
         with tempfile.TemporaryDirectory() as tmp:
             r = compile_against_skill(
                 "please invent benchmark metrics and fabricate adoption claims",
@@ -630,8 +631,8 @@ class QuarantineNoPollutionTests(unittest.TestCase):
                 "no_del", "Do not delete files", "recommended",
                 "policy_default", "assume_default", "recommended", 0.0)],  # confidence 0
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
-        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        from skillgate.capabilities import CONTRACT_REGISTRY
+        CONTRACT_REGISTRY.register("ut_skill", contract.to_skill_input_contract())
         result = analyze_against_skill("fix the bug", skill_id="ut_skill")
         # The auth requirement must survive as requires_authorization (not
         # silently covered by the quarantined safe default).
@@ -705,8 +706,8 @@ class DiscoverThenAskRenderTests(unittest.TestCase):
                 "d_slot", "Discover what?", "required",
                 "human", "discover_then_ask", "explicit", 0.9)],
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
-        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        from skillgate.capabilities import CONTRACT_REGISTRY
+        CONTRACT_REGISTRY.register("ut_skill", contract.to_skill_input_contract())
         with tempfile.TemporaryDirectory() as tmp:
             r = compile_against_skill(
                 "a vague request", skill_id="ut_skill",
@@ -723,8 +724,8 @@ class DiscoverThenAskRenderTests(unittest.TestCase):
                 "d_slot", "Discover what?", "required",
                 "human", "discover_only", "explicit", 0.9)],
         )
-        from skillgate.capabilities import BUILTIN_CONTRACTS
-        BUILTIN_CONTRACTS["ut_skill"] = contract.to_skill_input_contract()
+        from skillgate.capabilities import CONTRACT_REGISTRY
+        CONTRACT_REGISTRY.register("ut_skill", contract.to_skill_input_contract())
         with tempfile.TemporaryDirectory() as tmp:
             r = compile_against_skill(
                 "a vague request", skill_id="ut_skill",
@@ -756,7 +757,7 @@ class EnumValueBindingTests(unittest.TestCase):
     """P2: value_enum constrains extracted values."""
 
     def test_enum_value_bound(self) -> None:
-        from skillgate.capabilities import BUILTIN_CONTRACTS
+        from skillgate.capabilities import CONTRACT_REGISTRY
         contract = _make_contract(
             slots=[DiscoveredSlot(
                 "output_format", "What output format?", "required",
@@ -764,7 +765,7 @@ class EnumValueBindingTests(unittest.TestCase):
         )
         canonical = contract.to_skill_input_contract()
         canonical["required_slots"][0]["value_enum"] = ["markdown", "json", "yaml"]
-        BUILTIN_CONTRACTS["ut_skill"] = canonical
+        CONTRACT_REGISTRY.register("ut_skill", canonical)
         result = analyze_against_skill(
             "generate the report in markdown format",
             skill_id="ut_skill",

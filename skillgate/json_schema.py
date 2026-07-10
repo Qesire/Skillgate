@@ -141,7 +141,6 @@ def skill_input_contract_json_schema() -> dict[str, Any]:
             "ask_if_missing",
             "discover_if_missing",
             "safe_defaults",
-            "block_if",
             "safety_blocks",
             "authorization_requirements",
             "execution_constraints",

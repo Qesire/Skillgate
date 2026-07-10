@@ -13,10 +13,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .capabilities import get_capability_for_task
 from .context import ContextResult, discover_context
-from .render import render_execution_brief, render_legacy_taskbrief, render_normalized_skill_input
-from .rules import SkillAnalysis, analyze_against_skill, analyze_request
+from .render import render_normalized_skill_input
+from .rules import SkillAnalysis, analyze_against_skill
 from .schema import (
     NORMALIZED_SKILL_INPUT_VERSION,
     SKILL_INPUT_CONTRACT_VERSION,
@@ -25,9 +24,6 @@ from .schema import (
     evidence,
     hash_text,
     short_hash,
-    statement,
-    validate_decision,
-    validate_taskbrief,
 )
 
 
@@ -371,126 +367,14 @@ def _run_id(raw_request: str, skill_id: str, context: ContextResult) -> str:
 # ═══════════════════════════════════════════════════════════════
 
 
-def compile_request(raw_request: str, *, root: Path, out_dir: Path | None = None) -> dict[str, Any]:
-    """Legacy entry point. Prefer compile_against_skill for new code.
+def compile_request(raw_request: str, *, root: Path, out_dir: Path | None = None,
+                    skill_id: str | None = None) -> dict[str, Any]:
+    """Legacy shim. Delegates to compile_against_skill.
 
-    Auto-classifies task, builds old-format TaskBrief artifacts.
+    Requires skill_id — either passed explicitly or read from the
+    normalized_skill_input.json in the default out_dir. Auto-classification
+    has been removed; callers must specify which skill to compile against.
     """
-    context = discover_context(root)
-    analysis = analyze_request(raw_request, context)
-    run_id = f"p0-{short_hash(raw_request, 16)}"
-
-    if out_dir is None:
-        out_dir = root / ".skillgate" / "runs" / run_id
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    # Convert SkillAnalysis to old-format tasksbrief artifacts
-    artifacts = _build_legacy_artifacts(raw_request, analysis, context, run_id)
-    _write_legacy_artifacts(out_dir, artifacts)
-
-    return {
-        "run_id": run_id,
-        "out_dir": str(out_dir),
-        "decision": artifacts["decision"],
-        "taskbrief": artifacts.get("taskbrief", {}),
-        "execution_brief": artifacts.get("execution_brief_markdown", ""),
-        "context_manifest": artifacts["context_manifest"],
-    }
-
-
-def _build_execution_brief_markdown(
-    raw_request: str,
-    taskbrief: dict[str, Any],
-) -> str:
-    """Build execution_brief_markdown, adding Execution Blocked prefix when needed."""
-    decision_kind = taskbrief.get("decision_kind", "unknown")
-    base = render_execution_brief(raw_request=raw_request, taskbrief=taskbrief)
-    if decision_kind.startswith("block"):
-        lines = base.split("\n")
-        # Insert "## Execution Blocked: ..." after the header line + blank line
-        lines.insert(2, f"## Execution Blocked: {decision_kind}")
-        lines.insert(2, "")
-        return "\n".join(lines)
-    return base
-
-
-def _build_legacy_artifacts(
-    raw_request: str,
-    analysis: SkillAnalysis,
-    context: ContextResult,
-    run_id: str,
-) -> dict[str, Any]:
-    evidence_items = _build_evidence(raw_request, analysis.skill_id, context)
-    evidence_ids = {item["id"] for item in evidence_items}
-
-    task_frame = {
-        "raw_request": raw_request,
-        "kind": analysis.task_kind,
-        "goal": statement(analysis.goal, ["ev_user_request"]),
-        "target_objects": [statement(s.get("text") or s.get("description", ""), ["ev_skill_contract"])
-                           for s in analysis.agent_discoverable],
-        "user_constraints": [statement(s.get("text") or s.get("description", ""), ["ev_skill_contract"])
-                             for s in analysis.human_askable + analysis.requires_authorization],
-        "requested_outputs": [statement("Normalized Skill Input", ["ev_skill_contract"])],
-        "ambiguity_notes": [statement(s.get("question") or "", ["ev_skill_contract"])
-                           for s in analysis.human_askable if s.get("question")],
-    }
-
-    taskbrief = {
-        "id": f"tb-{short_hash(run_id)}",
-        "run_id": run_id,
-        "schema_version": "taskbrief.v2.p0",
-        "task_frame": task_frame,
-        "matched_capability": get_capability_for_task(analysis.task_kind),
-        "decision_kind": analysis.decision_kind,
-        "goal": statement(analysis.goal, ["ev_user_request"]),
-        "scope_in": [statement(s.get("text") or s.get("description", ""), ["ev_skill_contract"])
-                       for s in analysis.safe_assumptions],
-        "scope_out": [statement(f, ["ev_policy_defaults"]) for f in analysis.forbidden_actions_legacy],
-        "known_facts": [statement(raw_request, ["ev_user_request"])]
-                       + [statement(fact, [f"ev_repo_fact_{i:03d}"])
-                          for i, (_, fact) in enumerate(context.facts(), start=1)],
-        "assumptions": [statement(a, ["ev_skill_contract"]) for a in analysis.assumptions],
-        "unresolved_unknowns": [statement(u, ["ev_skill_contract"]) for u in analysis.unresolved_unknowns],
-        "execution_policy": [],
-        "forbidden_actions": [statement(f, ["ev_policy_defaults"]) for f in analysis.forbidden_actions_legacy],
-        "verification_policy": [statement(v, ["ev_skill_contract"]) for v in analysis.verification_policy],
-        "stop_conditions": [],
-        "output_contract": [],
-        "evidence": evidence_items,
-    }
-
-    decision = {
-        "kind": analysis.decision_kind,
-        "reason": analysis.decision_reason,
-        "confidence": analysis.confidence,
-        "questions": analysis.questions,
-        "assumptions": [statement(a, ["ev_skill_contract"]) for a in analysis.assumptions],
-        "readonly_exploration_plan": [statement(e, ["ev_skill_contract"]) for e in analysis.readonly_exploration_plan],
-        "blocking_slots": [],
-        "stop_conditions": [],
-    }
-
-    return {
-        "request": raw_request,
-        "context_manifest": context.manifest(),
-        "taskbrief": taskbrief,
-        "taskbrief_markdown": render_legacy_taskbrief(taskbrief, decision),
-        "execution_brief_markdown": _build_execution_brief_markdown(
-            raw_request, taskbrief),
-        "decision": decision,
-        "trace": _trace_events(raw_request, analysis, context),
-    }
-
-
-def _write_legacy_artifacts(out_dir: Path, artifacts: dict[str, Any]) -> None:
-    (out_dir / "request.md").write_text(artifacts["request"] + "\n", encoding="utf-8")
-    _write_json(out_dir / "context_manifest.json", artifacts["context_manifest"])
-    _write_json(out_dir / "decision.json", artifacts["decision"])
-    if "taskbrief" in artifacts:
-        _write_json(out_dir / "taskbrief.json", artifacts["taskbrief"])
-    (out_dir / "taskbrief.md").write_text(artifacts.get("taskbrief_markdown", ""), encoding="utf-8")
-    (out_dir / "execution_brief.md").write_text(artifacts.get("execution_brief_markdown", ""), encoding="utf-8")
-    with (out_dir / "trace.jsonl").open("w", encoding="utf-8") as fh:
-        for event in artifacts["trace"]:
-            fh.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
+    if skill_id is None:
+        raise ValueError("compile_request now requires skill_id (auto-classification removed)")
+    return compile_against_skill(raw_request, skill_id=skill_id, root=root, out_dir=out_dir)

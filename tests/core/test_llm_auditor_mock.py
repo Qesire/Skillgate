@@ -80,7 +80,7 @@ class MockLLMAuditorTests(unittest.TestCase):
         self.assertIsInstance(builtin, dict)
         for key in (
             "required_slots", "ask_if_missing", "discover_if_missing",
-            "safe_defaults", "block_if",
+            "safe_defaults", "safety_blocks",
         ):
             self.assertIsInstance(builtin[key], list, f"{key} should be a list")
 

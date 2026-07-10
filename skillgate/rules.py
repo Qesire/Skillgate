@@ -18,11 +18,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from .capabilities import (
-    get_contract_for_skill,
-    get_contract_for_task_kind,
-    TASK_KIND_TO_SKILL_ID,
-)
+from .capabilities import CONTRACT_REGISTRY
 from .constants import CLARIFICATION_MARKER
 from .context import ContextResult
 from .schema import (
@@ -93,22 +89,20 @@ def analyze_against_skill(
 
     Args:
         raw_request: The user's raw request.
-        skill_id: Explicit skill to target (e.g., 'bug_fix'). If None, classified from request.
+        skill_id: Explicit skill to target (e.g., 'bug_fix'). Required —
+            auto-classification has been removed.
         context: Optional pre-discovered context for discovery hints.
 
     Returns:
         SkillAnalysis with categorized slot states and decision.
     """
+    if skill_id is None:
+        raise ValueError("skill_id is required")
+    task_kind = skill_id
+
     lower = raw_request.lower()
 
-    # 1. Determine skill
-    if skill_id is None:
-        task_kind = _classify_task(raw_request)
-        skill_id = TASK_KIND_TO_SKILL_ID.get(task_kind, "generic_unknown")
-    else:
-        task_kind = _task_kind_for_skill(skill_id)
-
-    contract = get_contract_for_skill(skill_id)
+    contract = CONTRACT_REGISTRY.get(skill_id)
     contract = normalize_contract(contract)  # always canonical v2
 
     # P1: Quarantine low-confidence contract slots BEFORE any decision logic.
@@ -426,33 +420,6 @@ def analyze_against_skill(
 
 
 # ── Helpers ──────────────────────────────────────────────────
-
-
-def _classify_task(raw_request: str) -> str:
-    """Classify task kind from raw request. Same logic as before."""
-    text = raw_request.lower()
-    if _contains(text, ["readme", "文档", "安装说明", "贡献指南", "项目介绍"]):
-        return "documentation"
-    if _contains(text, ["测试", "test", "pytest", "cargo test", "断言"]) or _mentions_test_snapshot(text):
-        return "failing_test"
-    if _contains(text, ["review", "审查", "检查", "pr", "凭据泄露", "安全问题", "数据丢失"]):
-        return "code_review"
-    if _contains(text, ["重构", "重复的分支", "api 名字", "重新组织", "batch move", "refactor", "rename public api"]):
-        return "refactor"
-    if _contains(text, ["csv", "导出", "接入 stripe", "付款", "加一个", "加个功能", "功能", "实现"]):
-        return "feature_impl"
-    if _contains(
-        text,
-        ["报错", "bug", "空白", "超时", "类型错误", "接口", "登录", "数据库", "data", "defect", "repair", "fix"],
-    ):
-        return "bug_fix"
-    return "unknown"
-
-
-def _task_kind_for_skill(skill_id: str) -> str:
-    """Reverse map skill_id to task_kind."""
-    reverse = {v: k for k, v in TASK_KIND_TO_SKILL_ID.items()}
-    return reverse.get(skill_id, "unknown")
 
 
 def _check_safety_blocks(safety_blocks: list[dict[str, Any]], raw_request: str) -> str | None:
@@ -1375,19 +1342,6 @@ def _dedupe_texts(texts: list[str]) -> list[str]:
 
 def _normalize_question_text(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip().lower())
-
-
-# ── Legacy entry point for backward compat ───────────────────
-
-
-def analyze_request(raw_request: str, context: ContextResult) -> SkillAnalysis:
-    """Legacy entry point: auto-classify and analyze. Use analyze_against_skill for new code."""
-    return analyze_against_skill(raw_request, skill_id=None, context=context)
-
-
-def classify_task(raw_request: str) -> str:
-    """Legacy: classify task from raw request."""
-    return _classify_task(raw_request)
 
 
 # ── String helpers ───────────────────────────────────────────

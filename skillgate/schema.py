@@ -197,7 +197,6 @@ def build_skill_input_contract(
         "execution_constraints": execution_constraints or [],
         "forbidden_actions": forbidden_actions or [],
         "stop_conditions": stop_conditions or [],
-        "block_if": safety_blocks or [],  # backward compat alias
         "contract_evidence": contract_evidence or [],
     }
 
@@ -341,7 +340,6 @@ def normalize_contract(contract: dict[str, Any]) -> dict[str, Any]:
         "execution_constraints": _list("execution_constraints"),
         "forbidden_actions": _list("forbidden_actions"),
         "stop_conditions": _list("stop_conditions"),
-        "block_if": safety_blocks,
         "contract_evidence": _list("contract_evidence"),
     }
 

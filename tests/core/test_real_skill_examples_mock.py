@@ -22,7 +22,7 @@ from pathlib import Path
 import tests.core  # noqa: F401 -- registers MockLLM fixtures at import time
 import yaml
 
-from skillgate.capabilities import BUILTIN_CONTRACTS
+from skillgate.capabilities import CONTRACT_REGISTRY
 from skillgate.compiler import compile_against_skill
 from skillgate.llm_auditor import (
     DiscoveredContract,
@@ -110,7 +110,7 @@ class RealSkillChainTests(unittest.TestCase):
         builtin = contract.to_builtin_format()
         self.assertEqual(skill, builtin["skill_id"])
         for key in ("required_slots", "ask_if_missing", "discover_if_missing",
-                    "safe_defaults", "block_if"):
+                    "safe_defaults", "safety_blocks"):
             self.assertIsInstance(builtin[key], list, f"{skill}: {key} not a list")
         all_slots = (builtin["required_slots"] + builtin["ask_if_missing"]
                      + builtin["discover_if_missing"])
@@ -135,8 +135,8 @@ class RealSkillChainTests(unittest.TestCase):
             contract = self._discover(skill)
             builtin = contract.to_builtin_format()
             self.assertTrue(
-                builtin["safe_defaults"] or builtin["block_if"],
-                f"{skill}: builtin should carry safe_defaults or block_if",
+                builtin["safe_defaults"] or builtin["safety_blocks"],
+                f"{skill}: builtin should carry safe_defaults or safety_blocks",
             )
 
     # ── Audit trace evidence is grounded in SKILL.md ───────────
@@ -193,15 +193,15 @@ class RealSkillChainTests(unittest.TestCase):
     def _compile_with_discovered(self, builtin: dict, request: str, root: Path) -> dict:
         """Inject the discovered contract, compile, then restore global state."""
         skill_id = builtin["skill_id"]
-        saved = BUILTIN_CONTRACTS.get(skill_id)
-        BUILTIN_CONTRACTS[skill_id] = builtin
+        saved = CONTRACT_REGISTRY._overlay.get(skill_id)
+        CONTRACT_REGISTRY.register(skill_id, builtin)
         try:
             return compile_against_skill(request, skill_id=skill_id, root=root, out_dir=root / ".run")
         finally:
             if saved is None:
-                BUILTIN_CONTRACTS.pop(skill_id, None)
+                CONTRACT_REGISTRY._overlay.pop(skill_id, None)
             else:
-                BUILTIN_CONTRACTS[skill_id] = saved
+                CONTRACT_REGISTRY.register(skill_id, saved)
 
     def _assert_normalized_input(self, result: dict, skill: str, tag: str) -> None:
         normalized = result["normalized_input"]

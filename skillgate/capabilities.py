@@ -404,15 +404,34 @@ BUILTIN_CONTRACTS: dict[str, dict[str, Any]] = {
     },
 }
 
-TASK_KIND_TO_SKILL_ID = {
-    "bug_fix": "bug_fix",
-    "failing_test": "failing_test_repair",
-    "code_review": "code_review",
-    "refactor": "refactor",
-    "documentation": "documentation_update",
-    "feature_impl": "feature_impl",
-    "unknown": "generic_unknown",
-}
+class ContractRegistry:
+    """Runtime contract registry: YAML-backed seeds + mutable runtime overlay."""
+
+    def __init__(self) -> None:
+        self._overlay: dict[str, dict[str, Any]] = {}
+
+    def register(self, skill_id: str, contract: dict[str, Any]) -> None:
+        self._overlay[skill_id] = contract
+
+    def get(self, skill_id: str) -> dict[str, Any]:
+        if skill_id in self._overlay:
+            return deepcopy(self._overlay[skill_id])
+        if skill_id in BUILTIN_CONTRACTS:
+            return get_contract_for_skill(skill_id)
+        raise ValueError(f"unknown skill_id: {skill_id}")
+
+    def contains(self, skill_id: str) -> bool:
+        return skill_id in self._overlay or skill_id in BUILTIN_CONTRACTS
+
+    def clear_overlay(self) -> None:
+        self._overlay.clear()
+
+
+CONTRACT_REGISTRY = ContractRegistry()
+
+
+# Backward compat: BUILTIN_CONTRACTS is still importable for read access.
+# For runtime registration, use CONTRACT_REGISTRY.register().
 
 
 def get_contract_for_skill(skill_id: str) -> dict[str, Any]:
@@ -439,53 +458,7 @@ def get_contract_for_skill(skill_id: str) -> dict[str, Any]:
         execution_constraints=contract.get("execution_constraints", []),
         forbidden_actions=contract.get("forbidden_actions", []),
         stop_conditions=contract.get("stop_conditions", []),
-        block_if=contract.get("block_if", []),
     )
-
-
-def get_contract_for_task_kind(task_kind: str) -> dict[str, Any]:
-    skill_id = TASK_KIND_TO_SKILL_ID.get(task_kind)
-    if skill_id is None:
-        raise ValueError(f"unknown task_kind: {task_kind}")
-    return get_contract_for_skill(skill_id)
 
 
 # ── Legacy compatibility ─────────────────────────────────────
-
-
-def get_capability_for_task(task_kind: str) -> dict[str, Any]:
-    """Legacy adapter: returns old-format capability from new contract."""
-    contract = get_contract_for_task_kind(task_kind)
-    required = [s["id"] for s in contract["required_slots"]]
-    discoverable = [s["id"] for s in contract["discover_if_missing"]]
-    must_ask = [s["id"] for s in contract["ask_if_missing"] if s["category"] == "human_askable"]
-    defaults = {s["id"]: s["text"] for s in contract["safe_defaults"]}
-    forbidden = (
-        [s["text"] for s in contract["block_if"]]
-        + [s["text"] for s in contract["safety_blocks"]]
-        + [s["text"] for s in contract["forbidden_actions"]]
-        + [s["text"] for s in contract["stop_conditions"]]
-        + [s["text"] for s in contract["safe_defaults"]]
-    )
-    verification = [s["text"] for s in contract["discover_if_missing"]]
-    return {
-        "id": contract["skill_id"],
-        "task_kind": task_kind,
-        "name": contract["skill_name"],
-        "description": contract["skill_description"],
-        "triggers": [],
-        "anti_triggers": [],
-        "required_slots": required,
-        "discoverable_slots": discoverable,
-        "must_ask_slots": must_ask,
-        "safe_defaults": defaults,
-        "forbidden_actions": forbidden,
-        "verification_hints": verification,
-    }
-
-
-CAPABILITIES: dict[str, dict[str, Any]] = {}
-for tk in TASK_KIND_TO_SKILL_ID:
-    CAPABILITIES[TASK_KIND_TO_SKILL_ID[tk]] = get_capability_for_task(tk)
-
-TASK_KIND_TO_CAPABILITY = {k: v for k, v in TASK_KIND_TO_SKILL_ID.items()}

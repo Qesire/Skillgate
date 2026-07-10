@@ -203,32 +203,6 @@ def render_normalized_skill_input(raw_request: str, analysis: Any, *, task_root:
     return "\n".join(lines)
 
 
-def render_legacy_taskbrief(taskbrief: dict[str, Any], decision: dict[str, Any]) -> str:
-    """Legacy renderer for backward compatibility during migration."""
-    lines: list[str] = ["# TaskBrief (Legacy)", ""]
-    lines.append(f"## Goal")
-    lines.append(f"- {taskbrief.get('goal', {}).get('text', 'Unknown')}")
-    lines.append("")
-    if decision.get("questions"):
-        lines.append("## Questions for User")
-        for q in decision["questions"]:
-            lines.append(f"- {q}")
-        lines.append("")
-    # ── Context ──
-    known_facts = taskbrief.get("known_facts", [])
-    if known_facts:
-        lines.append("## Context")
-        for fact in known_facts:
-            text = fact.get("text", str(fact)) if isinstance(fact, dict) else str(fact)
-            lines.append(f"- {text}")
-        lines.append("")
-    lines.append(f"## Decision")
-    lines.append(f"- Kind: `{decision.get('kind', 'unknown')}`")
-    lines.append(f"- Reason: {decision.get('reason', '')}")
-    lines.append("")
-    return "\n".join(lines)
-
-
 # ── helpers ──────────────────────────────────────────────────
 
 
@@ -287,43 +261,3 @@ _EXPECTED_OUTPUTS: dict[str, list[str]] = {
 
 def _expected_output_for(skill_id: str) -> list[str]:
     return _EXPECTED_OUTPUTS.get(skill_id, [])
-
-
-# ── backward compat exports ──────────────────────────────────
-
-
-def render_taskbrief(taskbrief: dict[str, Any], decision: dict[str, Any]) -> str:
-    """Backward compat: render legacy taskbrief. New code should use render_normalized_skill_input."""
-    return render_legacy_taskbrief(taskbrief, decision)
-
-
-def render_execution_brief(*, raw_request: str, taskbrief: dict[str, Any]) -> str:
-    """Legacy execution brief. Kept for backward compat."""
-    decision_kind = taskbrief.get("decision_kind", "unknown")
-    lines = [
-        "# Execution Brief (Legacy)",
-        "",
-        "## Request",
-        "",
-        raw_request.strip(),
-        "",
-        f"## Decision: `{decision_kind}`",
-        "",
-    ]
-    # ── Context ──
-    known_facts = taskbrief.get("known_facts", [])
-    if known_facts:
-        lines.append("## Context")
-        lines.append("")
-        for fact in known_facts:
-            text = fact.get("text", str(fact)) if isinstance(fact, dict) else str(fact)
-            lines.append(f"- {text}")
-        lines.append("")
-    if decision_kind in ("block_unsafe", "ask_user"):
-        lines.append("- Do not modify files until the decision is resolved.")
-        lines.append("")
-    else:
-        lines.append("- Inspect local context before modifying files.")
-        lines.append("- Run relevant local verification and report the outcome.")
-        lines.append("")
-    return "\n".join(lines)

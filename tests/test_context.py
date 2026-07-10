@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from skillgate.compiler import compile_request
+from skillgate.compiler import compile_against_skill
 from skillgate.context import discover_context
 
 
@@ -18,15 +18,16 @@ class ContextDiscoveryTests(unittest.TestCase):
                 root.mkdir(parents=True)
                 (root / "README.md").write_text("# Same Project\n\nRun tests with pytest.\n", encoding="utf-8")
                 results.append(
-                    compile_request(
+                    compile_against_skill(
                         "Fix the reported parser bug without changing the public API.",
+                        skill_id="bug_fix",
                         root=root,
                         out_dir=parent / f"run-{index}",
                     )
                 )
 
             self.assertEqual(results[0]["run_id"], results[1]["run_id"])
-            self.assertEqual(results[0]["taskbrief"], results[1]["taskbrief"])
+            self.assertEqual(results[0]["normalized_input"], results[1]["normalized_input"])
             self.assertNotEqual(results[0]["context_manifest"]["root"], results[1]["context_manifest"]["root"])
 
     def test_denylisted_secret_files_are_not_read(self) -> None:
@@ -71,37 +72,12 @@ class ContextDiscoveryTests(unittest.TestCase):
             self.assertFalse(any("curl" in fact for fact in facts))
 
     def test_execution_brief_surfaces_resolved_context(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / "repo"
-            root.mkdir()
-            (root / "README.md").write_text(
-                "Documented public entry point: `parse_item`\n"
-                "Target source: `src/parser.py`\n"
-                "Run `python -m unittest discover -s tests`.\n",
-                encoding="utf-8",
-            )
-            result = compile_request(
-                "Repair the repository defect while preserving the public API and tests.",
-                root=root,
-                out_dir=Path(tmp) / "out",
-            )
-
-            brief = result["execution_brief"]
-            self.assertIn("Documented public entry point: parse_item", brief)
-            self.assertIn("Documented target source: src/parser.py", brief)
-            self.assertIn("python -m unittest discover -s tests", brief)
+        """Legacy execution_brief tests removed — TaskBrief path deleted in v0.4 Commit 1."""
+        self.skipTest("Legacy execution_brief path removed in v0.4 refactor")
 
     def test_blocked_execution_brief_does_not_authorize_writes(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            result = compile_request(
-                "生产数据库里的数据不对，帮我连上去改一下",
-                root=Path(tmp),
-                out_dir=Path(tmp) / "out",
-            )
-
-            brief = result["execution_brief"]
-            self.assertIn("Execution Blocked", brief)
-            self.assertNotIn("Modify source files", brief)
+        """Legacy execution_brief tests removed — TaskBrief path deleted in v0.4 Commit 1."""
+        self.skipTest("Legacy execution_brief path removed in v0.4 refactor")
 
     def test_api_key_and_bearer_values_are_redacted(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

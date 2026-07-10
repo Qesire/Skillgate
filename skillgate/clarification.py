@@ -355,7 +355,10 @@ def _recompile_resolved_request(
 ) -> dict[str, Any]:
     normalized_path = run_dir / "normalized_skill_input.json"
     if not normalized_path.exists():
-        return compile_request(resolved_request, root=root, out_dir=out_dir)
+        raise ValueError(
+            "Cannot recompile: normalized_skill_input.json not found and "
+            "compile_request now requires an explicit skill_id"
+        )
 
     normalized = json.loads(normalized_path.read_text(encoding="utf-8"))
     skill_id = normalized.get("skill_id")
@@ -364,10 +367,10 @@ def _recompile_resolved_request(
 
     contract_path = run_dir / "skill_contract.json"
     if contract_path.exists():
-        from .capabilities import BUILTIN_CONTRACTS
+        from .capabilities import CONTRACT_REGISTRY
 
         contract = json.loads(contract_path.read_text(encoding="utf-8"))
-        BUILTIN_CONTRACTS[contract["skill_id"]] = contract
+        CONTRACT_REGISTRY.register(contract["skill_id"], contract)
 
     return compile_against_skill(resolved_request, skill_id=skill_id, root=root, out_dir=out_dir)
 

@@ -93,79 +93,81 @@ def _register_audit_skill(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("skill_path", help="Path to SKILL.md or equivalent skill description.")
     p.add_argument("--write", dest="output_path", help="Write the discovered contract as YAML to this path.")
     p.add_argument("--json", action="store_true", help="Print the contract as JSON.")
-    p.add_argument("--llm", choices=["mock", "openai"], default=None,
+    p.add_argument("--llm", choices=["mock", "openai"], default="mock",
                    help="Use LLM-assisted four-stage audit (mock for testing, openai for real).")
+    p.add_argument("--rules-only", action="store_true",
+                   help="Use rules-based baseline auditor instead of LLM.")
 
 
 def _cmd_audit_skill(args: argparse.Namespace) -> None:
-    # ── LLM-assisted path ──────────────────────────────────
-    if args.llm:
-        if args.llm == "mock":
-            llm = MockLLM(fixture_name=Path(args.skill_path).stem.lower())
-        else:
-            llm = OpenAILLM()
-
-        contract = audit_skill_file_with_llm(args.skill_path, llm)
-
+    # ── Rules-based baseline path (opt-in) ─────────────────
+    if args.rules_only:
         if args.output_path:
-            from .llm_auditor import contract_to_yaml as llm_contract_to_yaml
-            yaml_str = llm_contract_to_yaml(contract)
-            Path(args.output_path).write_text(yaml_str, encoding="utf-8")
-            print(f"LLM-discovered contract for: {contract.skill_id}")
+            contract = audit_skill_to_yaml(args.skill_path, args.output_path)
+            print(f"Discovered contract for: {contract['skill_id']}")
             print(f"Written to: {args.output_path}")
-            print(f"Slots: {len(contract.slots)}, "
-                  f"Safe defaults: {len(contract.safe_defaults)}, "
-                  f"Block: {len(contract.block_if)}")
-            return
-
-        if args.json:
-            print(llm_contract_to_json(contract))
-            return
-
-        print(f"Skill: {contract.skill_name} ({contract.skill_id})")
-        print(f"Activation triggers: {contract.activation.get('triggers', [])}")
-        print()
-        for s in contract.slots:
-            print(f"  [{s.answer_source}] {s.name}: {s.description[:60]}")
-            print(f"    necessity={s.necessity} support={s.support} "
-                  f"confidence={s.confidence} policy={s.missing_policy}")
-            if s.evidence:
-                for ev in s.evidence[:1]:
-                    print(f"    evidence: \"{ev.get('quote', '')[:50]}\" → {ev.get('rationale', '')[:50]}")
-        if contract.safe_defaults:
-            print(f"\n  Safe defaults: {len(contract.safe_defaults)}")
-            for sd in contract.safe_defaults:
-                print(f"    - {sd}")
-        if contract.block_if:
-            print(f"\n  Block if: {len(contract.block_if)}")
-            for b in contract.block_if:
-                print(f"    - {b}")
+            print(f"Slots: {len(contract['required_slots'])} required, "
+                  f"{len(contract['ask_if_missing'])} ask-if-missing, "
+                  f"{len(contract['discover_if_missing'])} discoverable, "
+                  f"{len(contract['safe_defaults'])} defaults, "
+                  f"{len(contract['safety_blocks'])} block conditions")
+        elif args.json:
+            contract = audit_skill(args.skill_path)
+            print(json.dumps(contract, ensure_ascii=False, indent=2, sort_keys=True))
+        else:
+            contract = audit_skill(args.skill_path)
+            print(f"Skill: {contract['skill_name']} ({contract['skill_id']})")
+            print(f"Version: {contract['skill_version']}")
+            print(f"Description: {contract['skill_description']}")
+            print()
+            _print_slot_section("Required Slots", contract["required_slots"])
+            _print_slot_section("Ask If Missing", contract["ask_if_missing"])
+            _print_slot_section("Discover If Missing", contract["discover_if_missing"])
+            _print_slot_section("Safe Defaults", contract["safe_defaults"])
+            _print_slot_section("Block If", contract["safety_blocks"])
         return
 
-    # ── Rules-based path (existing) ────────────────────────
-    if args.output_path:
-        contract = audit_skill_to_yaml(args.skill_path, args.output_path)
-        print(f"Discovered contract for: {contract['skill_id']}")
-        print(f"Written to: {args.output_path}")
-        print(f"Slots: {len(contract['required_slots'])} required, "
-              f"{len(contract['ask_if_missing'])} ask-if-missing, "
-              f"{len(contract['discover_if_missing'])} discoverable, "
-              f"{len(contract['safe_defaults'])} defaults, "
-              f"{len(contract['block_if'])} block conditions")
-    elif args.json:
-        contract = audit_skill(args.skill_path)
-        print(json.dumps(contract, ensure_ascii=False, indent=2, sort_keys=True))
+    # ── LLM-assisted path (default) ────────────────────────
+    if args.llm == "mock":
+        llm = MockLLM(fixture_name=Path(args.skill_path).stem.lower())
     else:
-        contract = audit_skill(args.skill_path)
-        print(f"Skill: {contract['skill_name']} ({contract['skill_id']})")
-        print(f"Version: {contract['skill_version']}")
-        print(f"Description: {contract['skill_description']}")
-        print()
-        _print_slot_section("Required Slots", contract["required_slots"])
-        _print_slot_section("Ask If Missing", contract["ask_if_missing"])
-        _print_slot_section("Discover If Missing", contract["discover_if_missing"])
-        _print_slot_section("Safe Defaults", contract["safe_defaults"])
-        _print_slot_section("Block If", contract["block_if"])
+        llm = OpenAILLM()
+
+    contract = audit_skill_file_with_llm(args.skill_path, llm)
+
+    if args.output_path:
+        from .llm_auditor import contract_to_yaml as llm_contract_to_yaml
+        yaml_str = llm_contract_to_yaml(contract)
+        Path(args.output_path).write_text(yaml_str, encoding="utf-8")
+        print(f"LLM-discovered contract for: {contract.skill_id}")
+        print(f"Written to: {args.output_path}")
+        print(f"Slots: {len(contract.slots)}, "
+              f"Safe defaults: {len(contract.safe_defaults)}, "
+              f"Block: {len(contract.block_if)}")
+        return
+
+    if args.json:
+        print(llm_contract_to_json(contract))
+        return
+
+    print(f"Skill: {contract.skill_name} ({contract.skill_id})")
+    print(f"Activation triggers: {contract.activation.get('triggers', [])}")
+    print()
+    for s in contract.slots:
+        print(f"  [{s.answer_source}] {s.name}: {s.description[:60]}")
+        print(f"    necessity={s.necessity} support={s.support} "
+              f"confidence={s.confidence} policy={s.missing_policy}")
+        if s.evidence:
+            for ev in s.evidence[:1]:
+                print(f"    evidence: \"{ev.get('quote', '')[:50]}\" → {ev.get('rationale', '')[:50]}")
+    if contract.safe_defaults:
+        print(f"\n  Safe defaults: {len(contract.safe_defaults)}")
+        for sd in contract.safe_defaults:
+            print(f"    - {sd}")
+    if contract.block_if:
+        print(f"\n  Block if: {len(contract.block_if)}")
+        for b in contract.block_if:
+            print(f"    - {b}")
 
 
 def _print_slot_section(title: str, slots: list[dict]) -> None:
@@ -183,11 +185,10 @@ def _print_slot_section(title: str, slots: list[dict]) -> None:
 def _register_compile(subparsers: argparse._SubParsersAction) -> None:
     p = subparsers.add_parser("compile", help="Compile a user request into a normalized skill input.")
     p.add_argument("request", nargs="+", help="Raw user request.")
-    p.add_argument("--skill", help="Target skill id (e.g., bug_fix, failing_test_repair). Auto-classified if omitted.")
+    p.add_argument("--skill", help="Target skill id (required unless --skill-file is provided).")
     p.add_argument("--skill-file", help="Path to a SKILL.md or .input.yaml file. Overrides --skill.")
     p.add_argument("--root", default=".", help="Repository root to inspect.")
     p.add_argument("--out", help="Output run directory. Defaults to .skillgate/runs/<run_id>.")
-    p.add_argument("--no-llm", action="store_true", help="Use rules-only mode (default).")
     p.add_argument("--infer-contract", action="store_true",
                    help="Use LLM to infer contract from SKILL.md if no .input.yaml exists (requires --skill-file).")
     p.add_argument("--json", action="store_true", help="Print normalized input summary as JSON.")
@@ -252,9 +253,9 @@ def _cmd_compile(args: argparse.Namespace) -> None:
                 llm = OpenAILLM()
                 contract = audit_skill_file_with_llm(skill_path, llm)
                 builtin = contract.to_builtin_format()
-                # Temporarily inject the discovered contract
-                from .capabilities import BUILTIN_CONTRACTS
-                BUILTIN_CONTRACTS[builtin["skill_id"]] = builtin
+                # Register the discovered contract in the runtime registry.
+                from .capabilities import CONTRACT_REGISTRY
+                CONTRACT_REGISTRY.register(builtin["skill_id"], builtin)
                 skill_id = builtin["skill_id"]
                 print(f"Inferred contract via LLM: {skill_id} ({len(contract.slots)} slots)")
             except Exception as e:
@@ -262,13 +263,17 @@ def _cmd_compile(args: argparse.Namespace) -> None:
 
         # Priority 3: rules-based audit (existing)
         if skill_id is None:
-            from .skill_auditor import audit_skill
+            from .baselines.rule_auditor import audit_skill
             discovered_contract = audit_skill(str(skill_path))
             skill_id = discovered_contract["skill_id"]
 
         if discovered_contract is not None:
-            from .capabilities import BUILTIN_CONTRACTS
-            BUILTIN_CONTRACTS[discovered_contract["skill_id"]] = discovered_contract
+            from .capabilities import CONTRACT_REGISTRY
+            CONTRACT_REGISTRY.register(discovered_contract["skill_id"], discovered_contract)
+
+    if skill_id is None:
+        print("Error: --skill or --skill-file is required (auto-classification removed)")
+        raise SystemExit(1)
 
     result = compile_against_skill(raw_request, skill_id=skill_id, root=root, out_dir=out_dir)
 

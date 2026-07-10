@@ -6,7 +6,6 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from skillgate.compiler import compile_request
 from skillgate.compiler import compile_against_skill
 from skillgate.cli import main as cli_main
 from skillgate.json_schema import (
@@ -14,7 +13,6 @@ from skillgate.json_schema import (
     normalized_skill_input_json_schema,
     skill_input_contract_json_schema,
     json_schema_errors,
-    taskbrief_json_schema,
     validate_published_schemas,
 )
 from skillgate.skill_auditor import audit_skill
@@ -24,29 +22,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class JsonSchemaTests(unittest.TestCase):
     def test_generated_taskbrief_conforms_to_published_structure(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            result = compile_request(
-                "这个测试挂了，帮我修一下",
-                root=ROOT / "examples" / "python_pytest_minimal",
-                out_dir=Path(tmp) / "run",
-            )
-
-            errors = json_schema_errors(result["taskbrief"], taskbrief_json_schema())
-
-            self.assertEqual([], errors)
+        """Legacy taskbrief schema test removed — TaskBrief path deleted in v0.4 Commit 1."""
+        self.skipTest("Legacy taskbrief path removed in v0.4 refactor")
 
     def test_schema_rejects_undeclared_fields(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            result = compile_request(
-                "完善 README",
-                root=ROOT / "examples" / "docs_only",
-                out_dir=Path(tmp) / "run",
-            )
-            result["taskbrief"]["undeclared"] = True
-
-            errors = json_schema_errors(result["taskbrief"], taskbrief_json_schema())
-
-            self.assertTrue(any("Additional properties are not allowed" in error for error in errors), errors)
+        """Legacy taskbrief schema test removed — TaskBrief path deleted in v0.4 Commit 1."""
+        self.skipTest("Legacy taskbrief path removed in v0.4 refactor")
 
     def test_repository_schemas_match_canonical_generator(self) -> None:
         result = validate_published_schemas(ROOT / "schemas")
