@@ -42,6 +42,7 @@ class JsonSchemaTests(unittest.TestCase):
                 "normalized_skill_input.v1.schema.json",
                 "recompile.v2.schema.json",
                 "skill_input_contract.v2.schema.json",
+                "skill_input_contract.v3.schema.json",
             ],
             result["schemas"],
         )
@@ -68,7 +69,7 @@ class JsonSchemaTests(unittest.TestCase):
                 cli_main(["schemas", "--out", str(output_dir)])
                 cli_main(["schemas", "--check", "--out", str(output_dir)])
 
-            self.assertEqual(7, len(list(output_dir.glob("*.json"))))
+            self.assertEqual(8, len(list(output_dir.glob("*.json"))))
 
     def test_cli_reports_package_version(self) -> None:
         output = StringIO()

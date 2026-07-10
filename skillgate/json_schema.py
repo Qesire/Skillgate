@@ -22,10 +22,24 @@ from .schema import (
     SLOT_STATUSES,
     SUPPORT_KINDS,
 )
+from .schema import (
+    ACQUISITION_STRATEGIES,
+    BENEFIT_LEVELS,
+    CONFIRMATION_POLICIES,
+    ENFORCEMENT_LEVELS,
+    GUARD_TYPES,
+    MISSING_POLICIES_V3,
+    POLICY_CATEGORIES,
+    SKILL_INPUT_CONTRACT_V3_VERSION,
+    SLOT_IMPORTANCE,
+    SLOT_ROLES,
+    VALUE_SCHEMA_TYPES,
+)
 
 
 TASKBRIEF_SCHEMA_FILE = f"{SCHEMA_VERSION}.schema.json"
 SKILL_INPUT_CONTRACT_SCHEMA_FILE = "skill_input_contract.v2.schema.json"
+SKILL_INPUT_CONTRACT_V3_SCHEMA_FILE = "skill_input_contract.v3.schema.json"
 INPUT_SLOT_STATE_SCHEMA_FILE = "input_slot_state.v1.schema.json"
 NORMALIZED_SKILL_INPUT_SCHEMA_FILE = "normalized_skill_input.v1.schema.json"
 DECISION_SCHEMA_FILE = "decision.v1.schema.json"
@@ -174,7 +188,166 @@ def skill_input_contract_json_schema() -> dict[str, Any]:
     }
 
 
-def input_slot_state_json_schema() -> dict[str, Any]:
+def skill_input_contract_v3_json_schema() -> dict[str, Any]:
+    slot = _v3_slot_schema()
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:skillgate:schema:skill-input-contract:v3",
+        "title": "SkillGate SkillInputContract v3",
+        "description": (
+            "Pre-activation input contract with unified slots, execution "
+            "policies, and activation guards."
+        ),
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "schema_version",
+            "skill",
+            "slots",
+            "execution_policies",
+            "activation_guards",
+            "contract_evidence",
+        ],
+        "properties": {
+            "schema_version": {"const": SKILL_INPUT_CONTRACT_V3_VERSION},
+            "skill": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "id",
+                    "name",
+                    "version",
+                    "description",
+                    "source_path",
+                    "source_sha256",
+                ],
+                "properties": {
+                    "id": _nonempty_string(),
+                    "name": _nonempty_string(),
+                    "version": _nonempty_string(),
+                    "description": _nonempty_string(),
+                    "source_path": _nullable(_nonempty_string()),
+                    "source_sha256": _nullable(_sha256()),
+                },
+            },
+            "slots": {"type": "array", "items": slot},
+            "execution_policies": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/execution_policy"},
+            },
+            "activation_guards": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/activation_guard"},
+            },
+            "contract_evidence": {
+                "type": "array",
+                "items": {"type": "object", "additionalProperties": True},
+            },
+        },
+        "$defs": {
+            "execution_policy": {
+                "type": "object",
+                "required": ["id", "text", "category"],
+                "properties": {
+                    "id": _nonempty_string(),
+                    "text": _nonempty_string(),
+                    "enforcement": {"enum": sorted(ENFORCEMENT_LEVELS)},
+                    "category": {"enum": sorted(POLICY_CATEGORIES)},
+                    "evidence_ids": {"type": "array", "items": _nonempty_string()},
+                },
+            },
+            "activation_guard": {
+                "type": "object",
+                "required": ["id", "text", "type"],
+                "properties": {
+                    "id": _nonempty_string(),
+                    "text": _nonempty_string(),
+                    "type": {"enum": sorted(GUARD_TYPES)},
+                    "evidence_ids": {"type": "array", "items": _nonempty_string()},
+                },
+            },
+        },
+    }
+
+
+def _v3_slot_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "required": ["id", "description", "importance", "role"],
+        # Allow v2 compat fields (answer_source, support, confidence,
+        # evidence_status, missing_policy, value_enum, v2_section).
+        "additionalProperties": True,
+        "properties": {
+            "id": _nonempty_string(),
+            "description": _nonempty_string(),
+            "importance": {"enum": sorted(SLOT_IMPORTANCE)},
+            "role": {"enum": sorted(SLOT_ROLES)},
+            "value_schema": {
+                "type": "object",
+                "additionalProperties": True,
+                "properties": {
+                    "type": {"enum": sorted(VALUE_SCHEMA_TYPES)},
+                    "cardinality": {"enum": ["one", "many"]},
+                    "allows_multiple": {"type": "boolean"},
+                    "value_enum": {
+                        "oneOf": [
+                            {"type": "null"},
+                            {"type": "array", "items": _nonempty_string()},
+                        ]
+                    },
+                },
+            },
+            "acquisition": {
+                "type": "object",
+                "additionalProperties": True,
+                "properties": {
+                    "allowed_sources": {"type": "array", "items": _nonempty_string()},
+                    "strategy": {"enum": sorted(ACQUISITION_STRATEGIES)},
+                    "resolver": {"oneOf": [{"type": "null"}, _nonempty_string()]},
+                },
+            },
+            "confirmation": {
+                "type": "object",
+                "additionalProperties": True,
+                "properties": {
+                    "policy": {"enum": sorted(CONFIRMATION_POLICIES)},
+                    "prompt": {"oneOf": [{"type": "null"}, _nonempty_string()]},
+                },
+            },
+            "missing": {
+                "type": "object",
+                "additionalProperties": True,
+                "properties": {
+                    "policy": {"enum": sorted(MISSING_POLICIES_V3)},
+                },
+            },
+            "benefit": {
+                "type": "object",
+                "additionalProperties": True,
+                "properties": {
+                    "reduces_exploration": {"enum": sorted(BENEFIT_LEVELS)},
+                    "reduces_error_risk": {"enum": sorted(BENEFIT_LEVELS)},
+                    "capability_note": {"type": "string"},
+                },
+            },
+            "evidence_ids": {"type": "array", "items": _nonempty_string()},
+            "answer_source": _nullable({"enum": sorted(ANSWER_SOURCES)}),
+            "support": _nullable({"enum": sorted(SUPPORT_KINDS)}),
+            "confidence": _confidence(),
+            "evidence_status": _nullable(
+                {"enum": ["verified", "partially_verified", "unverified"]}
+            ),
+            "missing_policy": _nullable({"enum": sorted(MISSING_POLICIES)}),
+            "v2_section": {
+                "enum": [
+                    "required_slots",
+                    "ask_if_missing",
+                    "discover_if_missing",
+                ]
+            },
+            "value_enum": {"type": "array", "items": _nonempty_string()},
+        },
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "urn:skillgate:schema:input-slot-state:v1",
@@ -391,9 +564,20 @@ def recompile_metadata_json_schema() -> dict[str, Any]:
     }
 
 
+def input_slot_state_json_schema() -> dict[str, Any]:
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:skillgate:schema:input-slot-state:v1",
+        "title": "SkillGate InputSlotState",
+        "description": "Evaluation state for one target-skill input slot.",
+        **_input_slot_state_schema(),
+    }
+
+
 def published_schema_documents() -> dict[str, dict[str, Any]]:
     return {
         SKILL_INPUT_CONTRACT_SCHEMA_FILE: skill_input_contract_json_schema(),
+        SKILL_INPUT_CONTRACT_V3_SCHEMA_FILE: skill_input_contract_v3_json_schema(),
         INPUT_SLOT_STATE_SCHEMA_FILE: input_slot_state_json_schema(),
         NORMALIZED_SKILL_INPUT_SCHEMA_FILE: normalized_skill_input_json_schema(),
         DECISION_SCHEMA_FILE: decision_json_schema(),

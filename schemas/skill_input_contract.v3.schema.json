@@ -1,0 +1,432 @@
+{
+  "$defs": {
+    "activation_guard": {
+      "properties": {
+        "evidence_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "authorization_required",
+            "safety_block",
+            "stop_condition"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "type"
+      ],
+      "type": "object"
+    },
+    "execution_policy": {
+      "properties": {
+        "category": {
+          "enum": [
+            "execution_constraint",
+            "forbidden_action",
+            "safe_default"
+          ]
+        },
+        "enforcement": {
+          "enum": [
+            "advisory",
+            "downstream",
+            "gate"
+          ]
+        },
+        "evidence_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "category"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "urn:skillgate:schema:skill-input-contract:v3",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Pre-activation input contract with unified slots, execution policies, and activation guards.",
+  "properties": {
+    "activation_guards": {
+      "items": {
+        "$ref": "#/$defs/activation_guard"
+      },
+      "type": "array"
+    },
+    "contract_evidence": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "execution_policies": {
+      "items": {
+        "$ref": "#/$defs/execution_policy"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "skillgate.skill_input_contract.v3"
+    },
+    "skill": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_path": {
+          "oneOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_sha256": {
+          "oneOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "version",
+        "description",
+        "source_path",
+        "source_sha256"
+      ],
+      "type": "object"
+    },
+    "slots": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "acquisition": {
+            "additionalProperties": true,
+            "properties": {
+              "allowed_sources": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "resolver": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                ]
+              },
+              "strategy": {
+                "enum": [
+                  "ask_user",
+                  "discover_then_ask",
+                  "discover_then_confirm",
+                  "infer_then_confirm",
+                  "use_default_then_confirm"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "answer_source": {
+            "oneOf": [
+              {
+                "enum": [
+                  "agent",
+                  "authorization",
+                  "blocked",
+                  "human",
+                  "human_or_agent",
+                  "known",
+                  "policy_default"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "benefit": {
+            "additionalProperties": true,
+            "properties": {
+              "capability_note": {
+                "type": "string"
+              },
+              "reduces_error_risk": {
+                "enum": [
+                  "high",
+                  "low",
+                  "medium",
+                  "none"
+                ]
+              },
+              "reduces_exploration": {
+                "enum": [
+                  "high",
+                  "low",
+                  "medium",
+                  "none"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "confirmation": {
+            "additionalProperties": true,
+            "properties": {
+              "policy": {
+                "enum": [
+                  "always",
+                  "if_defaulted",
+                  "if_discovered",
+                  "if_inferred",
+                  "never",
+                  "on_conflict"
+                ]
+              },
+              "prompt": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "description": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "evidence_status": {
+            "oneOf": [
+              {
+                "enum": [
+                  "verified",
+                  "partially_verified",
+                  "unverified"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "importance": {
+            "enum": [
+              "optional",
+              "quality_amplifier",
+              "required"
+            ]
+          },
+          "missing": {
+            "additionalProperties": true,
+            "properties": {
+              "policy": {
+                "enum": [
+                  "ask_user",
+                  "block",
+                  "skip"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "missing_policy": {
+            "oneOf": [
+              {
+                "enum": [
+                  "ask_user",
+                  "assume_default",
+                  "block",
+                  "discover_only",
+                  "discover_then_ask"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "enum": [
+              "acceptance_criterion",
+              "environment_fact",
+              "execution_input",
+              "output_preference",
+              "permission",
+              "user_intent"
+            ]
+          },
+          "support": {
+            "oneOf": [
+              {
+                "enum": [
+                  "explicit",
+                  "guessed",
+                  "inferred",
+                  "recommended"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "v2_section": {
+            "enum": [
+              "required_slots",
+              "ask_if_missing",
+              "discover_if_missing"
+            ]
+          },
+          "value_enum": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "value_schema": {
+            "additionalProperties": true,
+            "properties": {
+              "allows_multiple": {
+                "type": "boolean"
+              },
+              "cardinality": {
+                "enum": [
+                  "one",
+                  "many"
+                ]
+              },
+              "type": {
+                "enum": [
+                  "boolean",
+                  "command",
+                  "enum",
+                  "float",
+                  "integer",
+                  "path",
+                  "text"
+                ]
+              },
+              "value_enum": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "items": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "importance",
+          "role"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "skill",
+    "slots",
+    "execution_policies",
+    "activation_guards",
+    "contract_evidence"
+  ],
+  "title": "SkillGate SkillInputContract v3",
+  "type": "object"
+}

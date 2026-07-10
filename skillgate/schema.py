@@ -10,6 +10,7 @@ LEGACY_TASKBRIEF_VERSION = "taskbrief.v2.p0"
 SCHEMA_VERSION = "taskbrief.v2.p0"
 
 SKILL_INPUT_CONTRACT_VERSION = "skillgate.skill_input_contract.v2"
+SKILL_INPUT_CONTRACT_V3_VERSION = "skillgate.skill_input_contract.v3"
 INPUT_SLOT_STATE_VERSION = "skillgate.input_slot_state.v1"
 NORMALIZED_SKILL_INPUT_VERSION = "skillgate.normalized_skill_input.v1"
 
@@ -272,6 +273,62 @@ MISSING_POLICIES = {
     "block",
 }
 
+# ── v3 enums ─────────────────────────────────────────────────
+
+SLOT_IMPORTANCE = {"required", "quality_amplifier", "optional"}
+
+SLOT_ROLES = {
+    "execution_input",
+    "user_intent",
+    "acceptance_criterion",
+    "environment_fact",
+    "permission",
+    "output_preference",
+}
+
+VALUE_SCHEMA_TYPES = {
+    "text",
+    "path",
+    "enum",
+    "boolean",
+    "command",
+    "integer",
+    "float",
+}
+
+VALUE_SCHEMA_CARDINALITIES = {"one", "many"}
+
+ACQUISITION_STRATEGIES = {
+    "ask_user",
+    "discover_then_confirm",
+    "discover_then_ask",
+    "infer_then_confirm",
+    "use_default_then_confirm",
+}
+
+CONFIRMATION_POLICIES = {
+    "never",
+    "always",
+    "if_inferred",
+    "if_discovered",
+    "if_defaulted",
+    "on_conflict",
+}
+
+MISSING_POLICIES_V3 = {"ask_user", "block", "skip"}
+
+BENEFIT_LEVELS = {"high", "medium", "low", "none"}
+
+ENFORCEMENT_LEVELS = {"downstream", "gate", "advisory"}
+
+POLICY_CATEGORIES = {
+    "execution_constraint",
+    "safe_default",
+    "forbidden_action",
+}
+
+GUARD_TYPES = {"safety_block", "authorization_required", "stop_condition"}
+
 
 def _validate_slot_entry(item: dict[str, Any], field: str) -> None:
     for key in ["id", "text", "category"]:
@@ -311,7 +368,12 @@ def normalize_contract(contract: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("contract must be a dict")
 
     version = contract.get("schema_version")
-    if version == V1_VERSION:
+    if version == SKILL_INPUT_CONTRACT_V3_VERSION:
+        # v3 input: convert to v2 view for the retained rules engine.
+        # normalize_contract still returns v2 (the engine consumes v2);
+        # it just needs to ACCEPT v3 input.
+        return v3_to_v2_engine_view(contract)
+    elif version == V1_VERSION:
         contract = migrate_contract_v1_to_v2(contract)
     elif version not in (SKILL_INPUT_CONTRACT_VERSION, V1_VERSION, None):
         raise ValueError(f"unexpected schema_version: {version}")
@@ -379,6 +441,728 @@ def validate_strict_contract(contract: dict[str, Any]) -> dict[str, Any]:
             if ans is not None and ans not in ANSWER_SOURCES:
                 raise ValueError(f"{section}[{idx}].answer_source invalid: {ans}")
     return normalized
+
+
+# ═══════════════════════════════════════════════════════════════
+#  NEW: SkillInputContract v3 (slots + execution_policies + activation_guards)
+# ═══════════════════════════════════════════════════════════════
+
+
+def build_skill_input_contract_v3(
+    *,
+    skill_id: str,
+    skill_name: str,
+    skill_version: str,
+    skill_description: str,
+    source_path: str | None = None,
+    source_sha256: str | None = None,
+    slots: list[dict[str, Any]] | None = None,
+    execution_policies: list[dict[str, Any]] | None = None,
+    activation_guards: list[dict[str, Any]] | None = None,
+    contract_evidence: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Build a v3 SkillInputContract dict.
+
+    v3 unifies the v2 slot sections (required_slots, ask_if_missing,
+    discover_if_missing) into a single ``slots`` array annotated with
+    ``importance`` / ``role`` / ``value_schema`` / ``acquisition`` /
+    ``confirmation`` / ``missing`` / ``benefit``.  Always-active assertions
+    (execution_constraints + safe_defaults + forbidden_actions) become
+    ``execution_policies``; pre-activation blocks (safety_blocks +
+    authorization_requirements + stop_conditions) become
+    ``activation_guards``.
+    """
+    return {
+        "schema_version": SKILL_INPUT_CONTRACT_V3_VERSION,
+        "skill": {
+            "id": skill_id,
+            "name": skill_name,
+            "version": skill_version,
+            "description": skill_description,
+            "source_path": source_path,
+            "source_sha256": source_sha256,
+        },
+        "slots": slots or [],
+        "execution_policies": execution_policies or [],
+        "activation_guards": activation_guards or [],
+        "contract_evidence": contract_evidence or [],
+    }
+
+
+# ── v2 → v3 migration helpers ────────────────────────────────
+
+
+def _v3_role_for_slot(slot: dict[str, Any]) -> str:
+    answer_source = slot.get("answer_source")
+    slot_id = str(slot.get("id", "")).lower()
+    if answer_source == "human":
+        if "criteria" in slot_id or "success" in slot_id:
+            return "acceptance_criterion"
+        return "user_intent"
+    if answer_source == "agent":
+        return "environment_fact"
+    if answer_source == "human_or_agent":
+        return "execution_input"
+    if answer_source == "authorization":
+        return "permission"
+    return "execution_input"
+
+
+def _v3_value_schema_for_slot(slot: dict[str, Any]) -> dict[str, Any]:
+    slot_id = str(slot.get("id", "")).lower()
+    value_enum = slot.get("value_enum")
+    if "scope" in slot_id or "path" in slot_id or "file" in slot_id:
+        return {
+            "type": "path",
+            "cardinality": "many",
+            "allows_multiple": True,
+            "value_enum": None,
+        }
+    if "command" in slot_id:
+        return {
+            "type": "command",
+            "cardinality": "one",
+            "allows_multiple": False,
+            "value_enum": None,
+        }
+    if value_enum:
+        return {
+            "type": "enum",
+            "cardinality": "one",
+            "allows_multiple": False,
+            "value_enum": list(value_enum),
+        }
+    return {
+        "type": "text",
+        "cardinality": "one",
+        "allows_multiple": False,
+        "value_enum": None,
+    }
+
+
+def _v3_missing_policy(missing_policy: str | None) -> str:
+    """Map a v2 missing_policy to a v3 missing.policy."""
+    if missing_policy == "ask_user":
+        return "ask_user"
+    if missing_policy == "block":
+        return "block"
+    if missing_policy == "assume_default":
+        return "skip"
+    # discover_then_ask / discover_only → discovery handles it; ask on failure.
+    return "ask_user"
+
+
+def _v3_confirmation_policy(missing_policy: str | None) -> str:
+    if missing_policy == "ask_user":
+        return "never"  # already asked, no discovery
+    if missing_policy == "discover_then_ask":
+        return "if_discovered"
+    if missing_policy == "discover_only":
+        return "if_discovered"
+    if missing_policy == "assume_default":
+        return "if_defaulted"
+    if missing_policy == "block":
+        return "never"
+    return "always"
+
+
+def _v3_acquisition_strategy(
+    importance: str, missing_policy: str | None
+) -> str:
+    """Infer a v3 acquisition.strategy from v2 importance + missing_policy."""
+    if importance == "required":
+        # required slot whose missing policy indicates discovery
+        if missing_policy in ("discover_then_ask", "discover_only"):
+            if missing_policy == "discover_then_ask":
+                return "discover_then_ask"
+            return "discover_then_confirm"
+        if missing_policy == "assume_default":
+            return "use_default_then_confirm"
+    if importance == "quality_amplifier":
+        if missing_policy in ("discover_then_ask", "discover_only"):
+            if missing_policy == "discover_then_ask":
+                return "discover_then_ask"
+            return "discover_then_confirm"
+        if missing_policy == "assume_default":
+            return "use_default_then_confirm"
+    return "ask_user"
+
+
+def _v3_benefit(importance: str) -> dict[str, Any]:
+    if importance == "required":
+        return {"reduces_exploration": "high", "reduces_error_risk": "high"}
+    if importance == "quality_amplifier":
+        return {"reduces_exploration": "medium", "reduces_error_risk": "medium"}
+    return {"reduces_exploration": "low", "reduces_error_risk": "low"}
+
+
+def _v3_slot_from_v2(
+    slot: dict[str, Any],
+    *,
+    importance: str,
+    missing_policy: str | None,
+    v2_section: str | None = None,
+) -> dict[str, Any]:
+    """Build a v3 slot dict from a v2 slot entry."""
+    description = slot.get("text", "")
+    strategy = _v3_acquisition_strategy(importance, missing_policy)
+    value_schema = _v3_value_schema_for_slot(slot)
+    v3_slot: dict[str, Any] = {
+        "id": slot.get("id"),
+        "description": description,
+        "importance": importance,
+        "role": _v3_role_for_slot(slot),
+        "value_schema": value_schema,
+        "acquisition": {
+            "allowed_sources": _v3_allowed_sources(slot),
+            "strategy": strategy,
+            "resolver": None,
+        },
+        "confirmation": {
+            "policy": _v3_confirmation_policy(missing_policy),
+            "prompt": None,
+        },
+        "missing": {
+            "policy": _v3_missing_policy(missing_policy),
+        },
+        "benefit": _v3_benefit(importance),
+        "evidence_ids": list(slot.get("evidence_ids", [])),
+        # v2 compat fields (used by the v3→v2 adapter):
+        "answer_source": slot.get("answer_source"),
+        "support": slot.get("support"),
+        "confidence": slot.get("confidence", 1.0),
+        "evidence_status": slot.get("evidence_status"),
+    }
+    # Preserve the originating v2 section so the v3→v2 adapter can route
+    # the slot back to exactly the same section (lossless roundtrip). When
+    # absent (hand-built v3 contracts), the adapter falls back to the
+    # importance / acquisition.strategy heuristics.
+    if v2_section is not None:
+        v3_slot["v2_section"] = v2_section
+    # Preserve any v2 missing_policy for the adapter's reverse mapping.
+    if missing_policy is not None:
+        v3_slot["missing_policy"] = missing_policy
+    # Preserve value_enum at slot level too for round-trip fidelity.
+    if slot.get("value_enum") is not None:
+        v3_slot["value_enum"] = list(slot["value_enum"])
+    return v3_slot
+
+
+def _v3_allowed_sources(slot: dict[str, Any]) -> list[str]:
+    answer_source = slot.get("answer_source")
+    if answer_source == "human":
+        return ["user"]
+    if answer_source == "agent":
+        return ["local_context"]
+    if answer_source == "human_or_agent":
+        return ["user", "local_context"]
+    if answer_source == "authorization":
+        return ["user"]
+    return ["user"]
+
+
+def _v3_policy_from_v2(
+    slot: dict[str, Any], *, category: str
+) -> dict[str, Any]:
+    return {
+        "id": slot.get("id"),
+        "text": slot.get("text", ""),
+        "enforcement": "advisory",
+        "category": category,
+        "evidence_ids": list(slot.get("evidence_ids", [])),
+    }
+
+
+def _v3_guard_from_v2(
+    slot: dict[str, Any], *, guard_type: str
+) -> dict[str, Any]:
+    return {
+        "id": slot.get("id"),
+        "text": slot.get("text", ""),
+        "type": guard_type,
+        "evidence_ids": list(slot.get("evidence_ids", [])),
+    }
+
+
+def migrate_contract_v2_to_v3(contract_v2: dict[str, Any]) -> dict[str, Any]:
+    """Migrate a v2 SkillInputContract to v3.
+
+    See the "v2→v3 migration mapping" table in the v0.4 refactor spec.
+    ``safe_defaults`` become ``execution_policies`` (category=safe_default),
+    NOT slots (oracle #8).
+    """
+    # Accept either raw v2 dicts or already-normalized v2.
+    if contract_v2.get("schema_version") not in (
+        SKILL_INPUT_CONTRACT_VERSION,
+        V1_VERSION,
+        None,
+    ):
+        # If it's already v3, return a normalized copy.
+        if contract_v2.get("schema_version") == SKILL_INPUT_CONTRACT_V3_VERSION:
+            return normalize_contract_v3(contract_v2)
+        raise ValueError(
+            f"migrate_contract_v2_to_v3 expects a v2 contract, got "
+            f"{contract_v2.get('schema_version')}"
+        )
+
+    v2 = normalize_contract(contract_v2)
+
+    slots: list[dict[str, Any]] = []
+    seen_slot_ids: set[str] = set()
+
+    def _add_slot(slot: dict[str, Any], *, importance: str, v2_section: str) -> None:
+        sid = slot.get("id")
+        if sid in seen_slot_ids:
+            return
+        seen_slot_ids.add(sid)
+        slots.append(
+            _v3_slot_from_v2(
+                slot,
+                importance=importance,
+                missing_policy=slot.get("missing_policy"),
+                v2_section=v2_section,
+            )
+        )
+
+    # required_slots → importance=required
+    for slot in v2.get("required_slots", []):
+        _add_slot(slot, importance="required", v2_section="required_slots")
+
+    # ask_if_missing → importance from support
+    for slot in v2.get("ask_if_missing", []):
+        support = slot.get("support")
+        importance = (
+            "required" if support in ("explicit", "recommended") else "quality_amplifier"
+        )
+        _add_slot(slot, importance=importance, v2_section="ask_if_missing")
+
+    # discover_if_missing → importance from missing_policy
+    for slot in v2.get("discover_if_missing", []):
+        missing_policy = slot.get("missing_policy")
+        if missing_policy in ("block", "discover_then_ask", "discover_only"):
+            importance = "required"
+        elif missing_policy == "assume_default":
+            importance = "quality_amplifier"
+        else:
+            importance = "required"
+        _add_slot(slot, importance=importance, v2_section="discover_if_missing")
+
+    execution_policies: list[dict[str, Any]] = []
+    for slot in v2.get("execution_constraints", []):
+        execution_policies.append(
+            _v3_policy_from_v2(slot, category="execution_constraint")
+        )
+    for slot in v2.get("safe_defaults", []):
+        execution_policies.append(
+            _v3_policy_from_v2(slot, category="safe_default")
+        )
+    for slot in v2.get("forbidden_actions", []):
+        execution_policies.append(
+            _v3_policy_from_v2(slot, category="forbidden_action")
+        )
+
+    activation_guards: list[dict[str, Any]] = []
+    for slot in v2.get("safety_blocks", []):
+        activation_guards.append(
+            _v3_guard_from_v2(slot, guard_type="safety_block")
+        )
+    for slot in v2.get("authorization_requirements", []):
+        activation_guards.append(
+            _v3_guard_from_v2(slot, guard_type="authorization_required")
+        )
+    for slot in v2.get("stop_conditions", []):
+        activation_guards.append(
+            _v3_guard_from_v2(slot, guard_type="stop_condition")
+        )
+
+    return build_skill_input_contract_v3(
+        skill_id=v2.get("skill_id", "unknown_skill"),
+        skill_name=v2.get("skill_name", "Unknown Skill"),
+        skill_version=v2.get("skill_version", "0.0.0"),
+        skill_description=v2.get("skill_description", ""),
+        source_path=v2.get("source_path"),
+        source_sha256=v2.get("source_sha256"),
+        slots=slots,
+        execution_policies=execution_policies,
+        activation_guards=activation_guards,
+        contract_evidence=list(v2.get("contract_evidence", [])),
+    )
+
+
+# ── v3 → v2 engine adapter ───────────────────────────────────
+
+
+def _v2_category_for_slot(slot_v3: dict[str, Any]) -> str:
+    acquisition = slot_v3.get("acquisition") or {}
+    strategy = acquisition.get("strategy")
+    role = slot_v3.get("role")
+    importance = slot_v3.get("importance")
+    if strategy == "ask_user":
+        return "human_askable"
+    if strategy in (
+        "discover_then_confirm",
+        "discover_then_ask",
+        "infer_then_confirm",
+    ):
+        return "agent_discoverable"
+    if role == "permission":
+        return "requires_authorization"
+    if importance == "required":
+        return "human_askable"
+    return "human_askable"
+
+
+def _v2_missing_policy_for_slot(slot_v3: dict[str, Any]) -> str:
+    # Prefer the preserved v2 missing_policy for exact round-trip fidelity.
+    if slot_v3.get("missing_policy") is not None:
+        return slot_v3["missing_policy"]
+    acquisition = slot_v3.get("acquisition") or {}
+    strategy = acquisition.get("strategy")
+    if strategy == "ask_user":
+        return "ask_user"
+    if strategy == "discover_then_confirm":
+        return "discover_only"
+    if strategy == "discover_then_ask":
+        return "discover_then_ask"
+    if strategy == "infer_then_confirm":
+        return "assume_default"
+    if strategy == "use_default_then_confirm":
+        return "assume_default"
+    missing = slot_v3.get("missing") or {}
+    if missing.get("policy") == "block":
+        return "block"
+    return "ask_user"
+
+
+def _v2_slot_from_v3(slot_v3: dict[str, Any]) -> dict[str, Any]:
+    v2_slot: dict[str, Any] = {
+        "id": slot_v3.get("id"),
+        "text": slot_v3.get("description", ""),
+        "category": _v2_category_for_slot(slot_v3),
+    }
+    # Carry v2 compat fields if present.
+    for key in (
+        "answer_source",
+        "support",
+        "confidence",
+        "evidence_status",
+        "missing_policy",
+        "evidence_ids",
+    ):
+        if key in slot_v3 and slot_v3[key] is not None:
+            v2_slot[key] = slot_v3[key]
+    # Ensure a missing_policy is present for the engine.
+    if "missing_policy" not in v2_slot:
+        v2_slot["missing_policy"] = _v2_missing_policy_for_slot(slot_v3)
+    # Carry value_enum if present.
+    if slot_v3.get("value_enum") is not None:
+        v2_slot["value_enum"] = list(slot_v3["value_enum"])
+    return v2_slot
+
+
+def v3_to_v2_engine_view(contract_v3: dict[str, Any]) -> dict[str, Any]:
+    """Convert a v3 contract to a v2-shaped dict for the retained rules engine.
+
+    The adapter runs at the engine entry point, NOT at registry time.
+    CONTRACT_REGISTRY returns v3; this adapter converts just before
+    consumption by ``rules.py`` (via ``normalize_contract``).
+    """
+    # Normalize v3 first so all sections are well-formed lists.
+    v3 = normalize_contract_v3(contract_v3)
+
+    skill = v3.get("skill") or {}
+
+    required_slots: list[dict[str, Any]] = []
+    ask_if_missing: list[dict[str, Any]] = []
+    discover_if_missing: list[dict[str, Any]] = []
+    required_ids: set[str] = set()
+    ask_ids: set[str] = set()
+    discover_ids: set[str] = set()
+
+    # If the slot carries a v2_section provenance field (set by the v2→v3
+    # migrator), route it back to exactly that section for a lossless
+    # roundtrip. Otherwise fall back to the importance / acquisition.strategy
+    # heuristics described in the spec.
+    has_provenance = any(slot.get("v2_section") for slot in v3.get("slots", []))
+
+    if has_provenance:
+        for slot in v3.get("slots", []):
+            sid = slot.get("id")
+            section = slot.get("v2_section")
+            v2_slot = _v2_slot_from_v3(slot)
+            if section == "required_slots":
+                if sid in required_ids:
+                    continue
+                required_slots.append(v2_slot)
+                required_ids.add(sid)
+            elif section == "ask_if_missing":
+                if sid in ask_ids:
+                    continue
+                ask_if_missing.append(v2_slot)
+                ask_ids.add(sid)
+            elif section == "discover_if_missing":
+                if sid in discover_ids:
+                    continue
+                discover_if_missing.append(v2_slot)
+                discover_ids.add(sid)
+            else:
+                # Unknown provenance: fall back to importance-based routing.
+                if slot.get("importance") == "required" and sid not in required_ids:
+                    required_slots.append(v2_slot)
+                    required_ids.add(sid)
+    else:
+        # First pass: required slots (importance=required).
+        for slot in v3.get("slots", []):
+            if slot.get("importance") == "required":
+                required_slots.append(_v2_slot_from_v3(slot))
+                required_ids.add(slot.get("id"))
+
+        # Second pass: non-required slots routed by acquisition.strategy.
+        for slot in v3.get("slots", []):
+            sid = slot.get("id")
+            if sid in required_ids:
+                continue
+            acquisition = slot.get("acquisition") or {}
+            strategy = acquisition.get("strategy")
+            if strategy == "ask_user":
+                if sid in ask_ids:
+                    continue
+                ask_if_missing.append(_v2_slot_from_v3(slot))
+                ask_ids.add(sid)
+            elif strategy in (
+                "discover_then_confirm",
+                "discover_then_ask",
+                "infer_then_confirm",
+            ):
+                if sid in discover_ids:
+                    continue
+                discover_if_missing.append(_v2_slot_from_v3(slot))
+                discover_ids.add(sid)
+
+    safe_defaults: list[dict[str, Any]] = []
+    execution_constraints: list[dict[str, Any]] = []
+    forbidden_actions: list[dict[str, Any]] = []
+    for policy in v3.get("execution_policies", []):
+        category = policy.get("category")
+        v2_entry = {
+            "id": policy.get("id"),
+            "text": policy.get("text", ""),
+            "category": "safe_assumption" if category == "safe_default"
+            else ("blocked" if category == "forbidden_action" else "safe_assumption"),
+        }
+        if policy.get("evidence_ids"):
+            v2_entry["evidence_ids"] = list(policy["evidence_ids"])
+        if category == "safe_default":
+            safe_defaults.append(v2_entry)
+        elif category == "execution_constraint":
+            execution_constraints.append(v2_entry)
+        elif category == "forbidden_action":
+            forbidden_actions.append(v2_entry)
+
+    safety_blocks: list[dict[str, Any]] = []
+    authorization_requirements: list[dict[str, Any]] = []
+    stop_conditions: list[dict[str, Any]] = []
+    for guard in v3.get("activation_guards", []):
+        guard_type = guard.get("type")
+        v2_entry = {
+            "id": guard.get("id"),
+            "text": guard.get("text", ""),
+            "category": (
+                "blocked" if guard_type == "safety_block"
+                else ("requires_authorization" if guard_type == "authorization_required"
+                      else "blocked")
+            ),
+        }
+        if guard.get("evidence_ids"):
+            v2_entry["evidence_ids"] = list(guard["evidence_ids"])
+        if guard_type == "safety_block":
+            safety_blocks.append(v2_entry)
+        elif guard_type == "authorization_required":
+            authorization_requirements.append(v2_entry)
+        elif guard_type == "stop_condition":
+            stop_conditions.append(v2_entry)
+
+    return {
+        "schema_version": SKILL_INPUT_CONTRACT_VERSION,
+        "skill_id": skill.get("id", "unknown_skill"),
+        "skill_name": skill.get("name", "Unknown Skill"),
+        "skill_version": skill.get("version", "0.0.0"),
+        "skill_description": skill.get("description", ""),
+        "source_path": skill.get("source_path"),
+        "source_sha256": skill.get("source_sha256"),
+        "required_slots": required_slots,
+        "ask_if_missing": ask_if_missing,
+        "discover_if_missing": discover_if_missing,
+        "safe_defaults": safe_defaults,
+        "safety_blocks": safety_blocks,
+        "authorization_requirements": authorization_requirements,
+        "execution_constraints": execution_constraints,
+        "forbidden_actions": forbidden_actions,
+        "stop_conditions": stop_conditions,
+        "contract_evidence": list(v3.get("contract_evidence", [])),
+    }
+
+
+# ── v3 normalization ─────────────────────────────────────────
+
+
+def normalize_contract_v3(contract: dict[str, Any]) -> dict[str, Any]:
+    """Normalize an arbitrary contract dict into a canonical v3 contract.
+
+    Accepts v3 dicts (passes through with shape normalization), v2 dicts
+    (migrated via :func:`migrate_contract_v2_to_v3`), and v1 dicts
+    (migrated v1→v2→v3).  Returns a fully-populated v3 contract with every
+    section present as a list and ``schema_version`` set to v3.
+    """
+    if not isinstance(contract, dict):
+        raise ValueError("contract must be a dict")
+
+    version = contract.get("schema_version")
+    if version == SKILL_INPUT_CONTRACT_V3_VERSION:
+        v3 = contract
+    elif version in (SKILL_INPUT_CONTRACT_VERSION, None):
+        v3 = migrate_contract_v2_to_v3(contract)
+    elif version == V1_VERSION:
+        v2 = migrate_contract_v1_to_v2(contract)
+        v3 = migrate_contract_v2_to_v3(v2)
+    else:
+        raise ValueError(f"unexpected schema_version: {version}")
+
+    def _list(name: str) -> list[dict[str, Any]]:
+        v = v3.get(name, [])
+        return list(v) if isinstance(v, list) else []
+
+    skill = v3.get("skill") or {}
+    if not isinstance(skill, dict):
+        skill = {}
+
+    return {
+        "schema_version": SKILL_INPUT_CONTRACT_V3_VERSION,
+        "skill": {
+            "id": skill.get("id", "unknown_skill"),
+            "name": skill.get("name", "Unknown Skill"),
+            "version": skill.get("version", "0.0.0"),
+            "description": skill.get("description", ""),
+            "source_path": skill.get("source_path"),
+            "source_sha256": skill.get("source_sha256"),
+        },
+        "slots": _list("slots"),
+        "execution_policies": _list("execution_policies"),
+        "activation_guards": _list("activation_guards"),
+        "contract_evidence": _list("contract_evidence"),
+    }
+
+
+# ── v3 validation ────────────────────────────────────────────
+
+
+def validate_skill_input_contract_v3(contract: dict[str, Any]) -> None:
+    """Validate a v3 SkillInputContract. Raises ValueError on any problem."""
+    if not isinstance(contract, dict):
+        raise ValueError("contract must be a dict")
+    if contract.get("schema_version") != SKILL_INPUT_CONTRACT_V3_VERSION:
+        raise ValueError(
+            f"unexpected schema_version: {contract.get('schema_version')} "
+            f"(expected {SKILL_INPUT_CONTRACT_V3_VERSION})"
+        )
+    for key in (
+        "schema_version",
+        "skill",
+        "slots",
+        "execution_policies",
+        "activation_guards",
+        "contract_evidence",
+    ):
+        if key not in contract:
+            raise ValueError(f"v3 SkillInputContract missing required key: {key}")
+
+    skill = contract["skill"]
+    if not isinstance(skill, dict):
+        raise ValueError("v3 SkillInputContract.skill must be an object")
+    for key in ("id", "name", "version", "description"):
+        if key not in skill:
+            raise ValueError(f"v3 SkillInputContract.skill missing {key}")
+        val = skill[key]
+        if not isinstance(val, str) or not val.strip():
+            raise ValueError(f"v3 SkillInputContract.skill.{key} must be a non-empty string")
+
+    for section in ("slots", "execution_policies", "activation_guards", "contract_evidence"):
+        if not isinstance(contract[section], list):
+            raise ValueError(f"v3 SkillInputContract.{section} must be a list")
+
+    for idx, slot in enumerate(contract["slots"]):
+        field = f"slots[{idx}]"
+        if not isinstance(slot, dict):
+            raise ValueError(f"{field} must be an object")
+        for key in ("id", "description", "importance", "role"):
+            if key not in slot:
+                raise ValueError(f"{field} missing {key}")
+        if slot["importance"] not in SLOT_IMPORTANCE:
+            raise ValueError(f"{field}.importance invalid: {slot['importance']}")
+        if slot["role"] not in SLOT_ROLES:
+            raise ValueError(f"{field}.role invalid: {slot['role']}")
+        value_schema = slot.get("value_schema")
+        if value_schema is not None:
+            if not isinstance(value_schema, dict):
+                raise ValueError(f"{field}.value_schema must be an object")
+            vs_type = value_schema.get("type")
+            if vs_type is not None and vs_type not in VALUE_SCHEMA_TYPES:
+                raise ValueError(f"{field}.value_schema.type invalid: {vs_type}")
+            cardinality = value_schema.get("cardinality")
+            if (
+                cardinality is not None
+                and cardinality not in VALUE_SCHEMA_CARDINALITIES
+            ):
+                raise ValueError(
+                    f"{field}.value_schema.cardinality invalid: {cardinality}"
+                )
+        acquisition = slot.get("acquisition")
+        if acquisition is not None:
+            if not isinstance(acquisition, dict):
+                raise ValueError(f"{field}.acquisition must be an object")
+            strategy = acquisition.get("strategy")
+            if strategy is not None and strategy not in ACQUISITION_STRATEGIES:
+                raise ValueError(f"{field}.acquisition.strategy invalid: {strategy}")
+        confirmation = slot.get("confirmation")
+        if confirmation is not None:
+            if not isinstance(confirmation, dict):
+                raise ValueError(f"{field}.confirmation must be an object")
+            policy = confirmation.get("policy")
+            if policy is not None and policy not in CONFIRMATION_POLICIES:
+                raise ValueError(f"{field}.confirmation.policy invalid: {policy}")
+        missing = slot.get("missing")
+        if missing is not None:
+            if not isinstance(missing, dict):
+                raise ValueError(f"{field}.missing must be an object")
+            mpolicy = missing.get("policy")
+            if mpolicy is not None and mpolicy not in MISSING_POLICIES_V3:
+                raise ValueError(f"{field}.missing.policy invalid: {mpolicy}")
+
+    for idx, policy in enumerate(contract["execution_policies"]):
+        field = f"execution_policies[{idx}]"
+        if not isinstance(policy, dict):
+            raise ValueError(f"{field} must be an object")
+        for key in ("id", "text", "category"):
+            if key not in policy:
+                raise ValueError(f"{field} missing {key}")
+        if policy["category"] not in POLICY_CATEGORIES:
+            raise ValueError(f"{field}.category invalid: {policy['category']}")
+        enforcement = policy.get("enforcement")
+        if (
+            enforcement is not None
+            and enforcement not in ENFORCEMENT_LEVELS
+        ):
+            raise ValueError(f"{field}.enforcement invalid: {enforcement}")
+
+    for idx, guard in enumerate(contract["activation_guards"]):
+        field = f"activation_guards[{idx}]"
+        if not isinstance(guard, dict):
+            raise ValueError(f"{field} must be an object")
+        for key in ("id", "text", "type"):
+            if key not in guard:
+                raise ValueError(f"{field} missing {key}")
+        if guard["type"] not in GUARD_TYPES:
+            raise ValueError(f"{field}.type invalid: {guard['type']}")
 
 
 # ═══════════════════════════════════════════════════════════════
