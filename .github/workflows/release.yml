@@ -57,7 +57,7 @@ jobs:
           uv run --python 3.12 --isolated --with "$wheel" skillgate schemas --out exported-schemas
           test "$(find exported-schemas -maxdepth 1 -name '*.json' | wc -l)" -eq 7
       - name: Attest distributions
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: "dist/*"
       - name: Preserve release artifacts
